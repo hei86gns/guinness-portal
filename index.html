@@ -1,0 +1,1095 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#1a5c4a">
+<title>ギネス家ポータル</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root {
+  --brand: #1a5c4a;
+  --brand-light: #e6f2ee;
+  --bg: #f4f5f7;
+  --card: #ffffff;
+  --text: #1f2937;
+  --text-sub: #6b7280;
+  --line: #e5e7eb;
+  --danger: #dc2626;
+  --warn: #ea580c;
+  --ok: #16a34a;
+  --radius: 14px;
+  --nav-h: 60px;
+  --shadow: 0 1px 3px rgba(0,0,0,.08);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html { font-size: 16px; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  background: var(--bg); color: var(--text);
+  padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom));
+}
+button { font-family: inherit; font-size: 1rem; border: none; background: none; cursor: pointer; color: inherit; }
+input, select { font-family: inherit; font-size: 1rem; }
+
+/* ---------- 共通レイアウト ---------- */
+.view { display: none; max-width: 560px; margin: 0 auto; padding: 12px 14px 24px; }
+.view.active { display: block; }
+.view-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 2px 14px;
+}
+.view-header h1 { font-size: 1.25rem; font-weight: 700; }
+.card {
+  background: var(--card); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding: 14px; margin-bottom: 12px;
+}
+.empty { text-align: center; color: var(--text-sub); padding: 24px 0; font-size: .9rem; }
+.badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 20px; height: 20px; padding: 0 6px;
+  background: var(--danger); color: #fff; border-radius: 10px;
+  font-size: .72rem; font-weight: 700;
+}
+.chip {
+  display: inline-block; padding: 2px 8px; border-radius: 999px;
+  font-size: .72rem; font-weight: 600;
+}
+.btn-primary {
+  background: var(--brand); color: #fff; border-radius: 10px;
+  padding: 12px 18px; font-weight: 700; width: 100%;
+}
+.btn-primary:disabled { opacity: .4; }
+.btn-ghost { color: var(--brand); font-weight: 600; padding: 8px 10px; }
+.btn-danger-ghost { color: var(--danger); font-weight: 600; padding: 8px 10px; }
+
+/* ---------- ログイン ---------- */
+#view-login { display: none; min-height: 100vh; padding-top: 18vh; text-align: center; }
+#view-login.active { display: block; }
+.login-logo { font-size: 3rem; }
+.login-title { font-size: 1.4rem; font-weight: 800; color: var(--brand); margin: 8px 0 28px; }
+#login-pass {
+  width: 100%; max-width: 300px; padding: 13px 16px; border: 1.5px solid var(--line);
+  border-radius: 12px; text-align: center; letter-spacing: .1em; background: var(--card);
+}
+#login-pass:focus { outline: none; border-color: var(--brand); }
+#login-btn { max-width: 300px; margin-top: 14px; }
+#login-err { color: var(--danger); font-size: .85rem; margin-top: 12px; min-height: 1.2em; }
+
+/* ---------- ホーム ---------- */
+.home-head { padding: 18px 2px 4px; }
+.home-date { color: var(--text-sub); font-size: .85rem; }
+.home-title { font-size: 1.45rem; font-weight: 800; color: var(--brand); }
+.section-label { font-size: .8rem; font-weight: 700; color: var(--text-sub); margin: 14px 2px 8px; }
+.today-event { display: flex; align-items: center; gap: 10px; padding: 9px 2px; }
+.today-event + .today-event { border-top: 1px solid var(--line); }
+.dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.today-event .t-time { font-size: .8rem; color: var(--text-sub); width: 44px; flex-shrink: 0; }
+.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.tile {
+  position: relative; background: var(--card); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding: 18px 14px; text-align: center;
+}
+.tile .icon { font-size: 2rem; }
+.tile .label { display: block; margin-top: 6px; font-weight: 700; font-size: .92rem; }
+.tile .badge { position: absolute; top: 10px; right: 10px; }
+
+/* ---------- 下部ナビ ---------- */
+#bottom-nav {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
+  display: none; grid-template-columns: repeat(4, 1fr);
+  height: calc(var(--nav-h) + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+  background: var(--card); border-top: 1px solid var(--line);
+}
+#bottom-nav.show { display: grid; }
+.nav-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: var(--text-sub); position: relative; }
+.nav-btn .n-icon { font-size: 1.3rem; }
+.nav-btn .n-label { font-size: .62rem; font-weight: 600; }
+.nav-btn.active { color: var(--brand); }
+.nav-btn .badge { position: absolute; top: 4px; right: calc(50% - 24px); }
+
+/* ---------- 入力列 ---------- */
+.add-row { display: flex; gap: 8px; margin-bottom: 12px; }
+.add-row input[type="text"] {
+  flex: 1; min-width: 0; padding: 12px 14px; border: 1.5px solid var(--line);
+  border-radius: 12px; background: var(--card);
+}
+.add-row input:focus { outline: none; border-color: var(--brand); }
+.add-row .add-btn {
+  background: var(--brand); color: #fff; border-radius: 12px;
+  width: 48px; flex-shrink: 0; font-size: 1.4rem; font-weight: 700;
+}
+
+/* ---------- 買い物リスト ---------- */
+.shop-item { display: flex; align-items: center; gap: 10px; padding: 11px 2px; }
+.shop-item + .shop-item { border-top: 1px solid var(--line); }
+.shop-check {
+  width: 26px; height: 26px; border: 2px solid #cbd5e1; border-radius: 8px;
+  flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 1rem; color: #fff; background: var(--card);
+}
+.shop-item.done .shop-check { background: var(--ok); border-color: var(--ok); }
+.shop-item .name { flex: 1; word-break: break-all; }
+.shop-item.done .name { color: var(--text-sub); text-decoration: line-through; }
+.badge-stock { background: #fef3c7; color: #92400e; }
+.del-btn { color: #cbd5e1; font-size: 1.1rem; padding: 6px 8px; flex-shrink: 0; }
+
+/* ---------- 食材在庫 ---------- */
+.seg { display: flex; background: #e9eaee; border-radius: 10px; padding: 3px; margin-bottom: 12px; }
+.seg button { flex: 1; padding: 8px 0; border-radius: 8px; font-size: .85rem; font-weight: 600; color: var(--text-sub); }
+.seg button.active { background: var(--card); color: var(--text); box-shadow: var(--shadow); }
+.pantry-item { display: flex; align-items: center; gap: 10px; padding: 11px 2px; }
+.pantry-item + .pantry-item { border-top: 1px solid var(--line); }
+.pantry-item .name { flex: 1; word-break: break-all; }
+.pantry-item .exp { font-size: .78rem; }
+.out-btn {
+  background: #fee2e2; color: var(--danger); border-radius: 10px;
+  padding: 7px 10px; font-size: .8rem; font-weight: 700; flex-shrink: 0;
+}
+.exp-red { color: var(--danger); font-weight: 700; }
+.exp-orange { color: var(--warn); font-weight: 700; }
+.exp-gray { color: var(--text-sub); }
+.pantry-form-grid { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.pantry-form-grid input[type="date"] {
+  padding: 10px 12px; border: 1.5px solid var(--line); border-radius: 12px; background: var(--card);
+}
+
+/* ---------- サブスク ---------- */
+.subs-total { text-align: center; padding: 20px 14px; }
+.subs-total .label { font-size: .8rem; color: var(--text-sub); font-weight: 600; }
+.subs-total .amount { font-size: 2.3rem; font-weight: 800; color: var(--brand); }
+.subs-total .amount small { font-size: 1rem; }
+.sub-item { display: flex; align-items: center; gap: 10px; padding: 12px 2px; }
+.sub-item + .sub-item { border-top: 1px solid var(--line); }
+.sub-item .info { flex: 1; min-width: 0; }
+.sub-item .name { font-weight: 600; word-break: break-all; }
+.sub-item .meta { font-size: .75rem; color: var(--text-sub); }
+.sub-item .price { font-weight: 700; white-space: nowrap; }
+.badge-renew { background: #fee2e2; color: var(--danger); }
+.form-grid { display: grid; gap: 8px; }
+.form-grid input[type="text"], .form-grid input[type="number"], .form-grid input[type="date"], .form-grid select {
+  width: 100%; padding: 11px 12px; border: 1.5px solid var(--line);
+  border-radius: 12px; background: var(--card);
+}
+.form-grid input:focus, .form-grid select:focus { outline: none; border-color: var(--brand); }
+.form-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+/* ---------- 車予約 ---------- */
+.week-nav { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 10px; }
+.week-nav .wk-label { font-weight: 700; font-size: .95rem; min-width: 170px; text-align: center; }
+.week-nav button { padding: 6px 14px; font-size: 1.1rem; color: var(--brand); font-weight: 700; }
+.timeline-wrap { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+.tl-header { display: grid; grid-template-columns: 34px repeat(7, 1fr); border-bottom: 1px solid var(--line); }
+.tl-header .day-h { text-align: center; padding: 7px 0; font-size: .7rem; color: var(--text-sub); }
+.tl-header .day-h .d-num { display: block; font-size: .85rem; font-weight: 700; color: var(--text); }
+.tl-header .day-h.today-h { background: var(--brand-light); }
+.tl-header .day-h.today-h .d-num { color: var(--brand); }
+.tl-body { display: grid; grid-template-columns: 34px repeat(7, 1fr); }
+.tl-hours { position: relative; }
+.tl-hours .h-label {
+  position: absolute; right: 4px; transform: translateY(-50%);
+  font-size: .62rem; color: var(--text-sub);
+}
+.tl-day { position: relative; border-left: 1px solid var(--line); }
+.tl-day .h-line { position: absolute; left: 0; right: 0; border-top: 1px solid #f1f2f4; }
+.tl-block {
+  position: absolute; left: 1px; right: 1px; border-radius: 6px;
+  color: #fff; font-size: .6rem; font-weight: 700; overflow: hidden;
+  padding: 2px 3px; line-height: 1.2;
+}
+.legend { display: flex; flex-wrap: wrap; gap: 10px; padding: 8px 4px 12px; }
+.legend .lg { display: flex; align-items: center; gap: 5px; font-size: .75rem; color: var(--text-sub); }
+
+/* ---------- カレンダー ---------- */
+.cal-nav { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 6px; }
+.cal-nav .cal-label { font-weight: 700; font-size: 1.05rem; min-width: 130px; text-align: center; }
+.cal-nav button { padding: 6px 14px; font-size: 1.1rem; color: var(--brand); font-weight: 700; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; padding: 6px 4px 8px; }
+.cal-wd { text-align: center; font-size: .7rem; color: var(--text-sub); padding: 6px 0; font-weight: 600; }
+.cal-cell { min-height: 52px; text-align: center; padding: 4px 0 2px; border-radius: 10px; }
+.cal-cell .d { font-size: .85rem; display: inline-flex; width: 24px; height: 24px; align-items: center; justify-content: center; border-radius: 50%; }
+.cal-cell.today .d { background: var(--brand); color: #fff; font-weight: 700; }
+.cal-cell.selected { background: var(--brand-light); }
+.cal-cell.dim .d { color: #c3c8d0; }
+.cal-dots { display: flex; justify-content: center; gap: 3px; margin-top: 3px; flex-wrap: wrap; }
+.cal-dots .dot { width: 6px; height: 6px; }
+.day-event { display: flex; align-items: center; gap: 10px; padding: 11px 2px; }
+.day-event + .day-event { border-top: 1px solid var(--line); }
+.day-event .t-time { font-size: .8rem; color: var(--text-sub); width: 44px; flex-shrink: 0; }
+.day-event .title { flex: 1; word-break: break-all; }
+.sun { color: var(--danger); } .sat { color: #2563eb; }
+
+/* ---------- モーダル ---------- */
+#modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 100;
+  display: none; align-items: flex-end; justify-content: center;
+}
+#modal-overlay.show { display: flex; }
+#modal-box {
+  background: var(--card); width: 100%; max-width: 560px;
+  border-radius: 18px 18px 0 0; padding: 20px 18px calc(20px + env(safe-area-inset-bottom));
+  max-height: 85vh; overflow-y: auto;
+}
+#modal-box h2 { font-size: 1.05rem; margin-bottom: 14px; }
+
+/* ---------- トースト ---------- */
+#toast {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 14px);
+  background: #111827; color: #fff; border-radius: 12px; padding: 12px 16px;
+  font-size: .88rem; z-index: 200; display: none; align-items: center; gap: 12px;
+  max-width: 92vw; box-shadow: 0 4px 16px rgba(0,0,0,.25);
+}
+#toast.show { display: flex; }
+#toast button { color: #6ee7b7; font-weight: 700; white-space: nowrap; }
+#toast .t-no { color: #9ca3af; }
+
+/* ---------- エラーバナー ---------- */
+#err-banner {
+  display: none; background: #fee2e2; color: #991b1b; font-size: .82rem;
+  padding: 10px 14px; text-align: center;
+}
+#err-banner.show { display: block; }
+</style>
+</head>
+<body>
+
+<div id="err-banner"></div>
+
+<!-- ログイン -->
+<div id="view-login" class="view">
+  <div class="login-logo">🏠</div>
+  <div class="login-title">ギネス家ポータル</div>
+  <input id="login-pass" type="password" placeholder="家族の合言葉" autocomplete="current-password">
+  <button id="login-btn" class="btn-primary">入る</button>
+  <div id="login-err"></div>
+</div>
+
+<!-- ホーム -->
+<div id="view-home" class="view">
+  <div class="home-head">
+    <div class="home-date" id="home-date"></div>
+    <div class="home-title">ギネス家ポータル</div>
+  </div>
+  <div class="section-label">今日の予定</div>
+  <div class="card" id="home-today"></div>
+  <div class="section-label">アプリ</div>
+  <div class="tiles">
+    <button class="tile" data-goto="shopping"><span class="icon">🛒</span><span class="label">買い物リスト</span><span class="badge" id="bdg-shop" hidden></span></button>
+    <button class="tile" data-goto="pantry"><span class="icon">🥚</span><span class="label">食材在庫</span><span class="badge" id="bdg-pantry" hidden></span></button>
+    <button class="tile" data-goto="subs"><span class="icon">💳</span><span class="label">サブスク</span><span class="badge" id="bdg-subs" hidden></span></button>
+    <button class="tile" data-goto="car"><span class="icon">🚗</span><span class="label">車予約</span></button>
+    <button class="tile" data-goto="calendar"><span class="icon">📅</span><span class="label">カレンダー</span></button>
+    <button class="tile" id="logout-tile"><span class="icon">🔒</span><span class="label">ロックする</span></button>
+  </div>
+</div>
+
+<!-- 買い物リスト -->
+<div id="view-shopping" class="view">
+  <div class="view-header"><h1>🛒 買い物リスト</h1><button class="btn-ghost" id="shop-clear-done">チェック済みを削除</button></div>
+  <div class="add-row">
+    <input type="text" id="shop-input" placeholder="例：牛乳" enterkeyhint="done">
+    <button class="add-btn" id="shop-add">＋</button>
+  </div>
+  <div class="card" id="shop-list"></div>
+</div>
+
+<!-- 食材在庫 -->
+<div id="view-pantry" class="view">
+  <div class="view-header"><h1>🥚 食材在庫</h1></div>
+  <div class="card">
+    <div class="form-grid">
+      <input type="text" id="pantry-name" placeholder="品名（例：たまご）" enterkeyhint="done">
+      <div class="form-2col">
+        <input type="date" id="pantry-date">
+        <select id="pantry-cat"><option>冷蔵</option><option>冷凍</option><option>常温</option></select>
+      </div>
+      <button class="btn-primary" id="pantry-add">在庫に追加</button>
+    </div>
+  </div>
+  <div class="seg" id="pantry-seg">
+    <button data-cat="all" class="active">すべて</button>
+    <button data-cat="冷蔵">冷蔵</button>
+    <button data-cat="冷凍">冷凍</button>
+    <button data-cat="常温">常温</button>
+  </div>
+  <div class="card" id="pantry-list"></div>
+</div>
+
+<!-- サブスク -->
+<div id="view-subs" class="view">
+  <div class="view-header"><h1>💳 サブスク</h1></div>
+  <div class="card subs-total">
+    <div class="label">月額合計（年払いは12分割で換算）</div>
+    <div class="amount" id="subs-total">¥0<small>/月</small></div>
+  </div>
+  <div class="card">
+    <div class="form-grid">
+      <input type="text" id="sub-name" placeholder="サービス名（例：Netflix）">
+      <div class="form-2col">
+        <input type="number" id="sub-amount" placeholder="金額（円）" inputmode="numeric" min="0">
+        <select id="sub-cycle"><option value="monthly">月額</option><option value="yearly">年額</option></select>
+      </div>
+      <select id="sub-month">
+        <option value="">更新月（任意）</option>
+      </select>
+      <button class="btn-primary" id="sub-add">登録する</button>
+    </div>
+  </div>
+  <div class="card" id="subs-list"></div>
+</div>
+
+<!-- 車予約 -->
+<div id="view-car" class="view">
+  <div class="view-header"><h1>🚗 車予約</h1><button class="btn-ghost" id="car-add-btn">＋ 予約</button></div>
+  <div class="week-nav">
+    <button id="car-prev">＜</button>
+    <span class="wk-label" id="car-week-label"></span>
+    <button id="car-next">＞</button>
+    <button id="car-today" style="font-size:.8rem">今週</button>
+  </div>
+  <div class="legend" id="car-legend"></div>
+  <div class="timeline-wrap">
+    <div class="tl-header" id="tl-header"></div>
+    <div class="tl-body" id="tl-body"></div>
+  </div>
+  <p style="font-size:.75rem;color:var(--text-sub);margin-top:8px;text-align:center">空いている時間帯をタップで予約 / 予約ブロックをタップで詳細</p>
+</div>
+
+<!-- カレンダー -->
+<div id="view-calendar" class="view">
+  <div class="view-header"><h1>📅 カレンダー</h1><button class="btn-ghost" id="cal-add-btn">＋ 予定</button></div>
+  <div class="cal-nav">
+    <button id="cal-prev">＜</button>
+    <span class="cal-label" id="cal-label"></span>
+    <button id="cal-next">＞</button>
+    <button id="cal-today" style="font-size:.8rem">今日</button>
+  </div>
+  <div class="legend" id="cal-legend"></div>
+  <div class="cal-grid" id="cal-grid"></div>
+  <div class="section-label" id="cal-sel-label"></div>
+  <div class="card" id="cal-day-list"></div>
+</div>
+
+<!-- 下部ナビ -->
+<nav id="bottom-nav">
+  <button class="nav-btn" data-goto="home"><span class="n-icon">🏠</span><span class="n-label">ホーム</span></button>
+  <button class="nav-btn" data-goto="shopping"><span class="n-icon">🛒</span><span class="n-label">買い物</span><span class="badge" id="nav-bdg-shop" hidden></span></button>
+  <button class="nav-btn" data-goto="pantry"><span class="n-icon">🥚</span><span class="n-label">在庫</span><span class="badge" id="nav-bdg-pantry" hidden></span></button>
+  <button class="nav-btn" data-goto="calendar"><span class="n-icon">📅</span><span class="n-label">予定</span></button>
+</nav>
+
+<!-- モーダル / トースト -->
+<div id="modal-overlay"><div id="modal-box"></div></div>
+<div id="toast"></div>
+
+<script>
+'use strict';
+/* ============================================================
+ * 設定（ここだけ編集すればOK）
+ * ============================================================ */
+const CONFIG = {
+  SUPABASE_URL: 'https://zkqvqztadbzqwdwqhyjw.supabase.co',   // プロジェクト2（家族データ用・Kakeiboと同居）
+  SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InprcXZxenRhZGJ6cXdkd3FoeWp3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI1MzYwNTUsImV4cCI6MjA5ODExMjA1NX0.qUEUX7Csd5mK4qPciGE-Zc_6TY_3888Faewkv99uFqU',
+  // 合言葉のSHA-256ハッシュ（初期値の合言葉: guinness）
+  // 変更方法: README.md 参照
+  PASS_HASH: '8879addeb18c6b29e8b89960f3310224792fbe08e955aabc3956bd4f29f1bc72',
+  // 家族メンバー（名前と色を家族に合わせて書き換える）
+  MEMBERS: [
+    { name: 'パパ', color: '#3b82f6' },
+    { name: 'ママ', color: '#ec4899' },
+    { name: '子ども1', color: '#10b981' },
+    { name: '子ども2', color: '#f59e0b' },
+  ],
+};
+
+/* ============================================================
+ * 同期設計メモ（tangocho supaLoad バグの教訓）
+ * ・クラウド(Supabase)を唯一の正とする。ローカルにデータを保存しない
+ *   → 「空のクラウドをローカルが上書き」する経路が存在しない
+ * ・操作は即クラウドへ書き込み → Realtime通知で全端末が再取得
+ * ============================================================ */
+
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => document.querySelectorAll(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const yen = (n) => '¥' + Math.round(n).toLocaleString('ja-JP');
+const WDAYS = ['日', '月', '火', '水', '木', '金', '土'];
+const dstr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const todayStr = () => dstr(new Date());
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const memberColor = (name) => (CONFIG.MEMBERS.find((m) => m.name === name) || {}).color || '#9ca3af';
+
+let sb = null;
+const state = {
+  shopping: [], pantry: [], subs: [], cars: [], events: [],
+  currentView: 'home',
+  pantryCat: 'all',
+  carWeekStart: mondayOf(new Date()),
+  calCursor: new Date(),
+  calSelected: todayStr(),
+};
+
+function mondayOf(d) {
+  const x = new Date(d); x.setHours(0, 0, 0, 0);
+  x.setDate(x.getDate() - ((x.getDay() + 6) % 7));
+  return x;
+}
+
+/* ---------- トースト ---------- */
+let toastTimer = null;
+function toast(msg, ms = 2500) {
+  const t = $('#toast');
+  t.innerHTML = esc(msg);
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), ms);
+}
+function actionToast(msg, yesLabel, onYes, ms = 8000) {
+  const t = $('#toast');
+  t.innerHTML = `<span>${esc(msg)}</span>`;
+  const yes = document.createElement('button'); yes.textContent = yesLabel;
+  const no = document.createElement('button'); no.textContent = 'いいえ'; no.className = 't-no';
+  yes.onclick = () => { t.classList.remove('show'); onYes(); };
+  no.onclick = () => t.classList.remove('show');
+  t.append(yes, no);
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), ms);
+}
+
+/* ---------- モーダル ---------- */
+function openModal(html) {
+  $('#modal-box').innerHTML = html;
+  $('#modal-overlay').classList.add('show');
+}
+function closeModal() { $('#modal-overlay').classList.remove('show'); }
+$('#modal-overlay').addEventListener('click', (e) => { if (e.target.id === 'modal-overlay') closeModal(); });
+
+/* ---------- エラー表示 ---------- */
+function showErr(msg) {
+  const b = $('#err-banner');
+  b.textContent = msg;
+  b.classList.add('show');
+  setTimeout(() => b.classList.remove('show'), 6000);
+}
+function dbErr(e, fallback) {
+  console.error(e);
+  showErr(fallback + (e && e.message ? `（${e.message}）` : ''));
+}
+
+/* ============================================================
+ * 認証（家族共通の合言葉）
+ * ============================================================ */
+async function sha256hex(text) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+async function tryLogin() {
+  const pass = $('#login-pass').value.trim();
+  if (!pass) return;
+  const h = await sha256hex(pass);
+  if (h === CONFIG.PASS_HASH) {
+    localStorage.setItem('gp_auth', h);
+    startApp();
+  } else {
+    $('#login-err').textContent = '合言葉がちがいます';
+    $('#login-pass').value = '';
+  }
+}
+$('#login-btn').addEventListener('click', tryLogin);
+$('#login-pass').addEventListener('keydown', (e) => { if (e.key === 'Enter') tryLogin(); });
+$('#logout-tile').addEventListener('click', () => {
+  localStorage.removeItem('gp_auth');
+  location.reload();
+});
+
+/* ============================================================
+ * 画面切り替え
+ * ============================================================ */
+function showView(name) {
+  state.currentView = name;
+  $$('.view').forEach((v) => v.classList.remove('active'));
+  $(`#view-${name}`).classList.add('active');
+  $$('#bottom-nav .nav-btn').forEach((b) => b.classList.toggle('active', b.dataset.goto === name));
+  window.scrollTo(0, 0);
+  render(name);
+}
+document.addEventListener('click', (e) => {
+  const g = e.target.closest('[data-goto]');
+  if (g) showView(g.dataset.goto);
+});
+
+function render(name) {
+  ({ home: renderHome, shopping: renderShopping, pantry: renderPantry,
+     subs: renderSubs, car: renderCar, calendar: renderCalendar }[name] || (() => {}))();
+}
+function rerender() { render(state.currentView); renderBadges(); }
+
+/* ============================================================
+ * データ読み込み（クラウドが唯一の正）
+ * ============================================================ */
+async function loadTable(table) {
+  const orders = {
+    shopping_items: ['created_at', { ascending: true }],
+    pantry_items: ['expires_on', { ascending: true }],
+    subscriptions: ['created_at', { ascending: true }],
+    car_reservations: ['starts_at', { ascending: true }],
+    events: ['start_time', { ascending: true, nullsFirst: true }],
+  };
+  const [col, opt] = orders[table];
+  const { data, error } = await sb.from(table).select('*').order(col, opt);
+  if (error) throw error;
+  const key = { shopping_items: 'shopping', pantry_items: 'pantry', subscriptions: 'subs', car_reservations: 'cars', events: 'events' }[table];
+  state[key] = data || [];
+}
+async function loadAll() {
+  await Promise.all(['shopping_items', 'pantry_items', 'subscriptions', 'car_reservations', 'events'].map(loadTable));
+}
+
+/* Realtime: どこかの端末で変更 → 該当テーブルを再取得して再描画 */
+function subscribeRealtime() {
+  const ch = sb.channel('portal-sync');
+  ['shopping_items', 'pantry_items', 'subscriptions', 'car_reservations', 'events'].forEach((t) => {
+    ch.on('postgres_changes', { event: '*', schema: 'public', table: t }, async () => {
+      try { await loadTable(t); rerender(); } catch (e) { console.error(e); }
+    });
+  });
+  ch.subscribe();
+}
+
+/* ============================================================
+ * ホーム
+ * ============================================================ */
+function renderHome() {
+  const now = new Date();
+  $('#home-date').textContent = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日（${WDAYS[now.getDay()]}）`;
+  const todays = state.events.filter((e) => e.event_date === todayStr()).slice(0, 3);
+  $('#home-today').innerHTML = todays.length
+    ? todays.map((e) => `
+      <div class="today-event">
+        <span class="dot" style="background:${memberColor(e.member)}"></span>
+        <span class="t-time">${e.start_time ? esc(e.start_time.slice(0, 5)) : '終日'}</span>
+        <span>${esc(e.title)}</span>
+      </div>`).join('')
+    : '<div class="empty">今日の予定はありません</div>';
+  renderBadges();
+}
+
+function renderBadges() {
+  const shopCount = state.shopping.filter((i) => !i.checked).length;
+  const pantryCount = state.pantry.filter((i) => daysLeft(i.expires_on) <= 3).length;
+  const m = new Date().getMonth() + 1;
+  const subsCount = state.subs.filter((s) => s.cycle === 'yearly' && s.renewal_month === m).length;
+  setBadge('#bdg-shop', shopCount); setBadge('#nav-bdg-shop', shopCount);
+  setBadge('#bdg-pantry', pantryCount); setBadge('#nav-bdg-pantry', pantryCount);
+  setBadge('#bdg-subs', subsCount);
+}
+function setBadge(sel, n) {
+  const el = $(sel);
+  if (!el) return;
+  el.hidden = n <= 0;
+  el.textContent = n;
+}
+
+/* ============================================================
+ * 買い物リスト（優先度1）
+ * ============================================================ */
+function renderShopping() {
+  const items = [...state.shopping].sort((a, b) => Number(a.checked) - Number(b.checked));
+  $('#shop-list').innerHTML = items.length
+    ? items.map((i) => `
+      <div class="shop-item ${i.checked ? 'done' : ''}" data-id="${i.id}">
+        <button class="shop-check" data-act="toggle">${i.checked ? '✓' : ''}</button>
+        <span class="name">${esc(i.name)}</span>
+        ${i.source === 'pantry' ? '<span class="chip badge-stock">在庫切れ</span>' : ''}
+        <button class="del-btn" data-act="del">✕</button>
+      </div>`).join('')
+    : '<div class="empty">リストは空です 🎉</div>';
+}
+
+async function addShopping(name, source = 'manual', pantryCategory = null) {
+  const { error } = await sb.from('shopping_items').insert({ name, source, pantry_category: pantryCategory });
+  if (error) return dbErr(error, '追加に失敗しました');
+  await loadTable('shopping_items'); rerender();
+}
+
+$('#shop-add').addEventListener('click', () => {
+  const input = $('#shop-input');
+  const name = input.value.trim();
+  if (!name) return;
+  input.value = '';
+  addShopping(name);
+});
+$('#shop-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#shop-add').click(); });
+
+$('#shop-list').addEventListener('click', async (e) => {
+  const row = e.target.closest('.shop-item');
+  const act = e.target.closest('[data-act]');
+  if (!row || !act) return;
+  const item = state.shopping.find((i) => i.id === row.dataset.id);
+  if (!item) return;
+
+  if (act.dataset.act === 'del') {
+    const { error } = await sb.from('shopping_items').delete().eq('id', item.id);
+    if (error) return dbErr(error, '削除に失敗しました');
+  } else if (act.dataset.act === 'toggle') {
+    const checked = !item.checked;
+    const { error } = await sb.from('shopping_items')
+      .update({ checked, checked_at: checked ? new Date().toISOString() : null })
+      .eq('id', item.id);
+    if (error) return dbErr(error, '更新に失敗しました');
+    // 購入チェック時 →「在庫に反映しますか？」（在庫との循環連携）
+    if (checked) {
+      actionToast(`「${item.name}」を在庫に反映しますか？`, '反映する', () => openPantryReflectModal(item));
+    }
+  }
+  await loadTable('shopping_items'); rerender();
+});
+
+$('#shop-clear-done').addEventListener('click', async () => {
+  const done = state.shopping.filter((i) => i.checked);
+  if (!done.length) return toast('チェック済みの品目はありません');
+  const { error } = await sb.from('shopping_items').delete().eq('checked', true);
+  if (error) return dbErr(error, '削除に失敗しました');
+  await loadTable('shopping_items'); rerender();
+  toast(`${done.length}件を削除しました`);
+});
+
+/* 購入品を在庫に反映するモーダル（賞味期限を入れるだけ） */
+function openPantryReflectModal(item) {
+  const def = dstr(addDays(new Date(), 7));
+  openModal(`
+    <h2>「${esc(item.name)}」を在庫に追加</h2>
+    <div class="form-grid">
+      <label style="font-size:.8rem;color:var(--text-sub)">賞味期限</label>
+      <input type="date" id="rf-date" value="${def}">
+      <select id="rf-cat">
+        ${['冷蔵', '冷凍', '常温'].map((c) => `<option ${c === (item.pantry_category || '冷蔵') ? 'selected' : ''}>${c}</option>`).join('')}
+      </select>
+      <button class="btn-primary" id="rf-ok">在庫に追加する</button>
+    </div>`);
+  $('#rf-ok').addEventListener('click', async () => {
+    const { error } = await sb.from('pantry_items').insert({
+      name: item.name, category: $('#rf-cat').value, expires_on: $('#rf-date').value,
+    });
+    closeModal();
+    if (error) return dbErr(error, '在庫への追加に失敗しました');
+    await loadTable('pantry_items'); rerender();
+    toast(`「${item.name}」を在庫に追加しました 🥚`);
+  });
+}
+
+/* ============================================================
+ * 食材在庫（優先度2）
+ * ============================================================ */
+function daysLeft(expiresOn) {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const exp = new Date(expiresOn + 'T00:00:00');
+  return Math.round((exp - today) / 86400000);
+}
+function expChip(expiresOn) {
+  const n = daysLeft(expiresOn);
+  const md = `${Number(expiresOn.slice(5, 7))}/${Number(expiresOn.slice(8, 10))}`;
+  if (n < 0) return `<span class="exp exp-red">期限切れ（${md}）</span>`;
+  if (n === 0) return `<span class="exp exp-red">今日まで</span>`;
+  if (n <= 3) return `<span class="exp exp-orange">あと${n}日（${md}）</span>`;
+  return `<span class="exp exp-gray">${md}まで</span>`;
+}
+
+function renderPantry() {
+  const items = state.pantry.filter((i) => state.pantryCat === 'all' || i.category === state.pantryCat);
+  $('#pantry-list').innerHTML = items.length
+    ? items.map((i) => `
+      <div class="pantry-item" data-id="${i.id}">
+        <span class="name">${esc(i.name)}<br>${expChip(i.expires_on)}</span>
+        <span class="chip" style="background:#eef2f7;color:var(--text-sub)">${esc(i.category)}</span>
+        <button class="out-btn" data-act="out">切れた🛒</button>
+        <button class="del-btn" data-act="del">✕</button>
+      </div>`).join('')
+    : '<div class="empty">在庫はありません</div>';
+}
+
+$('#pantry-seg').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-cat]');
+  if (!b) return;
+  state.pantryCat = b.dataset.cat;
+  $$('#pantry-seg button').forEach((x) => x.classList.toggle('active', x === b));
+  renderPantry();
+});
+
+$('#pantry-add').addEventListener('click', async () => {
+  const name = $('#pantry-name').value.trim();
+  const date = $('#pantry-date').value;
+  if (!name || !date) return toast('品名と賞味期限を入れてください');
+  const { error } = await sb.from('pantry_items').insert({ name, category: $('#pantry-cat').value, expires_on: date });
+  if (error) return dbErr(error, '追加に失敗しました');
+  $('#pantry-name').value = '';
+  await loadTable('pantry_items'); rerender();
+});
+$('#pantry-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#pantry-add').click(); });
+
+$('#pantry-list').addEventListener('click', async (e) => {
+  const row = e.target.closest('.pantry-item');
+  const act = e.target.closest('[data-act]');
+  if (!row || !act) return;
+  const item = state.pantry.find((i) => i.id === row.dataset.id);
+  if (!item) return;
+
+  if (act.dataset.act === 'out') {
+    // 在庫切れ → 買い物リストへワンタップ追加（カテゴリを覚えて循環させる）
+    const { error: e1 } = await sb.from('shopping_items').insert({ name: item.name, source: 'pantry', pantry_category: item.category });
+    if (e1) return dbErr(e1, '買い物リストへの追加に失敗しました');
+    const { error: e2 } = await sb.from('pantry_items').delete().eq('id', item.id);
+    if (e2) return dbErr(e2, '在庫の更新に失敗しました');
+    toast(`「${item.name}」を買い物リストに追加しました 🛒`);
+  } else if (act.dataset.act === 'del') {
+    if (!confirm(`「${item.name}」を在庫から削除しますか？`)) return;
+    const { error } = await sb.from('pantry_items').delete().eq('id', item.id);
+    if (error) return dbErr(error, '削除に失敗しました');
+  }
+  await Promise.all([loadTable('pantry_items'), loadTable('shopping_items')]);
+  rerender();
+});
+
+/* ============================================================
+ * サブスク（優先度3）
+ * ============================================================ */
+function monthlyOf(s) { return s.cycle === 'yearly' ? s.amount / 12 : s.amount; }
+
+function renderSubs() {
+  const total = state.subs.reduce((sum, s) => sum + monthlyOf(s), 0);
+  $('#subs-total').innerHTML = `${yen(total)}<small>/月</small>`;
+  const m = new Date().getMonth() + 1;
+  $('#subs-list').innerHTML = state.subs.length
+    ? state.subs.map((s) => `
+      <div class="sub-item" data-id="${s.id}">
+        <div class="info">
+          <div class="name">${esc(s.name)}
+            ${s.cycle === 'yearly' && s.renewal_month === m ? '<span class="chip badge-renew">今月更新</span>' : ''}
+          </div>
+          <div class="meta">${s.cycle === 'yearly' ? `年額 ${yen(s.amount)}` : '月額'}${s.renewal_month ? ` ・ 更新月 ${s.renewal_month}月` : ''}</div>
+        </div>
+        <span class="price">${yen(monthlyOf(s))}<small style="font-size:.7rem;color:var(--text-sub)">/月</small></span>
+        <button class="del-btn" data-act="del">✕</button>
+      </div>`).join('')
+    : '<div class="empty">登録されたサブスクはありません</div>';
+}
+
+$('#sub-add').addEventListener('click', async () => {
+  const name = $('#sub-name').value.trim();
+  const amount = parseInt($('#sub-amount').value, 10);
+  if (!name || !(amount >= 0)) return toast('サービス名と金額を入れてください');
+  const renewal = $('#sub-month').value ? parseInt($('#sub-month').value, 10) : null;
+  const { error } = await sb.from('subscriptions').insert({
+    name, amount, cycle: $('#sub-cycle').value, renewal_month: renewal,
+  });
+  if (error) return dbErr(error, '登録に失敗しました');
+  $('#sub-name').value = ''; $('#sub-amount').value = ''; $('#sub-month').value = '';
+  await loadTable('subscriptions'); rerender();
+});
+
+$('#subs-list').addEventListener('click', async (e) => {
+  const row = e.target.closest('.sub-item');
+  if (!row || !e.target.closest('[data-act="del"]')) return;
+  const item = state.subs.find((s) => s.id === row.dataset.id);
+  if (!item || !confirm(`「${item.name}」を削除しますか？`)) return;
+  const { error } = await sb.from('subscriptions').delete().eq('id', item.id);
+  if (error) return dbErr(error, '削除に失敗しました');
+  await loadTable('subscriptions'); rerender();
+});
+
+/* ============================================================
+ * 車予約（優先度4） 週タイムライン 6:00-24:00
+ * ============================================================ */
+const CAR_START_H = 6, CAR_END_H = 24, HOUR_PX = 40;
+
+function renderCar() {
+  const ws = state.carWeekStart;
+  const we = addDays(ws, 6);
+  $('#car-week-label').textContent =
+    `${ws.getMonth() + 1}/${ws.getDate()}（${WDAYS[ws.getDay()]}）〜 ${we.getMonth() + 1}/${we.getDate()}（${WDAYS[we.getDay()]}）`;
+  $('#car-legend').innerHTML = CONFIG.MEMBERS.map((m) =>
+    `<span class="lg"><span class="dot" style="background:${m.color}"></span>${esc(m.name)}</span>`).join('');
+
+  const days = [...Array(7)].map((_, i) => addDays(ws, i));
+  $('#tl-header').innerHTML = '<div></div>' + days.map((d) => `
+    <div class="day-h ${dstr(d) === todayStr() ? 'today-h' : ''}">
+      ${WDAYS[d.getDay()]}<span class="d-num">${d.getDate()}</span>
+    </div>`).join('');
+
+  const totalH = (CAR_END_H - CAR_START_H) * HOUR_PX;
+  const hourLabels = [...Array(CAR_END_H - CAR_START_H + 1)].map((_, i) =>
+    `<span class="h-label" style="top:${i * HOUR_PX}px">${CAR_START_H + i}</span>`).join('');
+
+  const dayCols = days.map((d) => {
+    const ds = dstr(d);
+    const lines = [...Array(CAR_END_H - CAR_START_H)].map((_, i) =>
+      `<div class="h-line" style="top:${i * HOUR_PX}px"></div>`).join('');
+    const blocks = state.cars
+      .filter((r) => dstr(new Date(r.starts_at)) === ds)
+      .map((r) => {
+        const s = new Date(r.starts_at), e = new Date(r.ends_at);
+        const sMin = Math.max(s.getHours() * 60 + s.getMinutes(), CAR_START_H * 60);
+        let eMin = e.getHours() * 60 + e.getMinutes();
+        if (eMin === 0) eMin = 24 * 60;
+        eMin = Math.min(eMin, CAR_END_H * 60);
+        const top = ((sMin - CAR_START_H * 60) / 60) * HOUR_PX;
+        const h = Math.max(((eMin - sMin) / 60) * HOUR_PX, 14);
+        return `<div class="tl-block" data-id="${r.id}" style="top:${top}px;height:${h}px;background:${memberColor(r.member)}">${esc(r.member)}</div>`;
+      }).join('');
+    return `<div class="tl-day" data-date="${ds}" style="height:${totalH}px">${lines}${blocks}</div>`;
+  }).join('');
+
+  $('#tl-body').innerHTML = `<div class="tl-hours" style="height:${totalH}px">${hourLabels}</div>${dayCols}`;
+}
+
+$('#car-prev').addEventListener('click', () => { state.carWeekStart = addDays(state.carWeekStart, -7); renderCar(); });
+$('#car-next').addEventListener('click', () => { state.carWeekStart = addDays(state.carWeekStart, 7); renderCar(); });
+$('#car-today').addEventListener('click', () => { state.carWeekStart = mondayOf(new Date()); renderCar(); });
+$('#car-add-btn').addEventListener('click', () => openCarModal(todayStr(), CAR_START_H + 12));
+
+$('#tl-body').addEventListener('click', (e) => {
+  const block = e.target.closest('.tl-block');
+  if (block) return openCarDetail(block.dataset.id);
+  const col = e.target.closest('.tl-day');
+  if (!col) return;
+  const y = e.clientY - col.getBoundingClientRect().top;
+  const hour = Math.min(CAR_START_H + Math.floor(y / HOUR_PX), CAR_END_H - 1);
+  openCarModal(col.dataset.date, hour);
+});
+
+function timeOptions(selMin) {
+  let html = '';
+  for (let m = CAR_START_H * 60; m <= CAR_END_H * 60; m += 30) {
+    const hh = String(Math.floor(m / 60)).padStart(2, '0');
+    const mm = String(m % 60).padStart(2, '0');
+    html += `<option value="${m}" ${m === selMin ? 'selected' : ''}>${hh}:${mm}</option>`;
+  }
+  return html;
+}
+
+function carOverlapExists(dateStr, sMin, eMin, excludeId = null) {
+  return state.cars.some((r) => {
+    if (r.id === excludeId) return false;
+    if (dstr(new Date(r.starts_at)) !== dateStr) return false;
+    const rs = new Date(r.starts_at), re = new Date(r.ends_at);
+    const rsMin = rs.getHours() * 60 + rs.getMinutes();
+    let reMin = re.getHours() * 60 + re.getMinutes();
+    if (reMin === 0) reMin = 24 * 60;
+    return sMin < reMin && eMin > rsMin;
+  });
+}
+
+function openCarModal(dateStr, startHour) {
+  openModal(`
+    <h2>🚗 車を予約</h2>
+    <div class="form-grid">
+      <select id="cr-member">${CONFIG.MEMBERS.map((m) => `<option>${esc(m.name)}</option>`).join('')}</select>
+      <input type="date" id="cr-date" value="${dateStr}">
+      <div class="form-2col">
+        <select id="cr-start">${timeOptions(startHour * 60)}</select>
+        <select id="cr-end">${timeOptions(Math.min((startHour + 1) * 60, CAR_END_H * 60))}</select>
+      </div>
+      <input type="text" id="cr-note" placeholder="メモ（例：買い出し）">
+      <div id="cr-warn" style="color:var(--danger);font-size:.82rem;min-height:1.2em"></div>
+      <button class="btn-primary" id="cr-ok">予約する</button>
+    </div>`);
+
+  const check = () => {
+    const s = parseInt($('#cr-start').value, 10);
+    const en = parseInt($('#cr-end').value, 10);
+    const d = $('#cr-date').value;
+    let msg = '';
+    if (en <= s) msg = '終了時刻は開始より後にしてください';
+    else if (carOverlapExists(d, s, en)) msg = '⚠️ この時間帯はすでに予約があります';
+    $('#cr-warn').textContent = msg;
+    $('#cr-ok').disabled = !!msg;  // UI側の一段目ブロック
+  };
+  ['cr-start', 'cr-end', 'cr-date'].forEach((id) => $('#' + id).addEventListener('change', check));
+  check();
+
+  $('#cr-ok').addEventListener('click', async () => {
+    const d = $('#cr-date').value;
+    const sMin = parseInt($('#cr-start').value, 10);
+    const eMin = parseInt($('#cr-end').value, 10);
+    const base = new Date(d + 'T00:00:00');
+    const starts = new Date(base.getTime() + sMin * 60000);
+    const ends = new Date(base.getTime() + eMin * 60000);
+    const { error } = await sb.from('car_reservations').insert({
+      member: $('#cr-member').value, starts_at: starts.toISOString(), ends_at: ends.toISOString(),
+      note: $('#cr-note').value.trim() || null,
+    });
+    closeModal();
+    if (error) {
+      // DB側の二段目ブロック（排他制約違反 = 23P01）
+      if (error.code === '23P01') return showErr('他の予約と時間が重なっています（他の端末から先に予約された可能性）');
+      return dbErr(error, '予約に失敗しました');
+    }
+    await loadTable('car_reservations'); rerender();
+    toast('予約しました 🚗');
+  });
+}
+
+function openCarDetail(id) {
+  const r = state.cars.find((x) => x.id === id);
+  if (!r) return;
+  const s = new Date(r.starts_at), e = new Date(r.ends_at);
+  const fmt = (d) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  openModal(`
+    <h2>🚗 予約の詳細</h2>
+    <div style="line-height:2">
+      <div><span class="dot" style="display:inline-block;background:${memberColor(r.member)}"></span> ${esc(r.member)}</div>
+      <div>${s.getMonth() + 1}/${s.getDate()}（${WDAYS[s.getDay()]}） ${fmt(s)} 〜 ${e.getHours() === 0 ? '24:00' : fmt(e)}</div>
+      ${r.note ? `<div style="color:var(--text-sub)">📝 ${esc(r.note)}</div>` : ''}
+    </div>
+    <button class="btn-danger-ghost" id="cr-del" style="margin-top:14px">この予約を削除する</button>`);
+  $('#cr-del').addEventListener('click', async () => {
+    if (!confirm('この予約を削除しますか？')) return;
+    const { error } = await sb.from('car_reservations').delete().eq('id', id);
+    closeModal();
+    if (error) return dbErr(error, '削除に失敗しました');
+    await loadTable('car_reservations'); rerender();
+  });
+}
+
+/* ============================================================
+ * カレンダー（優先度5）
+ * ============================================================ */
+function renderCalendar() {
+  const c = state.calCursor;
+  $('#cal-label').textContent = `${c.getFullYear()}年${c.getMonth() + 1}月`;
+  // 凡例（固定表示）
+  $('#cal-legend').innerHTML = CONFIG.MEMBERS.map((m) =>
+    `<span class="lg"><span class="dot" style="background:${m.color}"></span>${esc(m.name)}</span>`).join('');
+
+  const first = new Date(c.getFullYear(), c.getMonth(), 1);
+  const gridStart = addDays(first, -first.getDay()); // 日曜はじまり
+  let html = WDAYS.map((w, i) =>
+    `<div class="cal-wd ${i === 0 ? 'sun' : ''} ${i === 6 ? 'sat' : ''}">${w}</div>`).join('');
+  for (let i = 0; i < 42; i++) {
+    const d = addDays(gridStart, i);
+    const ds = dstr(d);
+    const inMonth = d.getMonth() === c.getMonth();
+    const dots = state.events.filter((e) => e.event_date === ds).slice(0, 4)
+      .map((e) => `<span class="dot" style="background:${memberColor(e.member)}"></span>`).join('');
+    html += `
+      <div class="cal-cell ${inMonth ? '' : 'dim'} ${ds === todayStr() ? 'today' : ''} ${ds === state.calSelected ? 'selected' : ''}" data-date="${ds}">
+        <span class="d ${d.getDay() === 0 ? 'sun' : ''} ${d.getDay() === 6 ? 'sat' : ''}">${d.getDate()}</span>
+        <div class="cal-dots">${dots}</div>
+      </div>`;
+  }
+  $('#cal-grid').innerHTML = html;
+  renderCalDayList();
+}
+
+function renderCalDayList() {
+  const ds = state.calSelected;
+  const d = new Date(ds + 'T00:00:00');
+  $('#cal-sel-label').textContent = `${d.getMonth() + 1}月${d.getDate()}日（${WDAYS[d.getDay()]}）の予定`;
+  const evs = state.events.filter((e) => e.event_date === ds);
+  $('#cal-day-list').innerHTML = evs.length
+    ? evs.map((e) => `
+      <div class="day-event" data-id="${e.id}">
+        <span class="dot" style="background:${memberColor(e.member)}"></span>
+        <span class="t-time">${e.start_time ? esc(e.start_time.slice(0, 5)) : '終日'}</span>
+        <span class="title">${esc(e.title)}${e.note ? `<br><small style="color:var(--text-sub)">${esc(e.note)}</small>` : ''}</span>
+        <span style="color:#cbd5e1">›</span>
+      </div>`).join('')
+    : '<div class="empty">予定はありません</div>';
+}
+
+$('#cal-prev').addEventListener('click', () => { state.calCursor = new Date(state.calCursor.getFullYear(), state.calCursor.getMonth() - 1, 1); renderCalendar(); });
+$('#cal-next').addEventListener('click', () => { state.calCursor = new Date(state.calCursor.getFullYear(), state.calCursor.getMonth() + 1, 1); renderCalendar(); });
+$('#cal-today').addEventListener('click', () => { state.calCursor = new Date(); state.calSelected = todayStr(); renderCalendar(); });
+$('#cal-add-btn').addEventListener('click', () => openEventModal(null));
+
+$('#cal-grid').addEventListener('click', (e) => {
+  const cell = e.target.closest('.cal-cell');
+  if (!cell) return;
+  state.calSelected = cell.dataset.date;
+  renderCalendar();
+});
+$('#cal-day-list').addEventListener('click', (e) => {
+  const row = e.target.closest('.day-event');
+  if (row) openEventModal(row.dataset.id);
+});
+
+function openEventModal(id) {
+  const ev = id ? state.events.find((x) => x.id === id) : null;
+  openModal(`
+    <h2>📅 ${ev ? '予定を編集' : '予定を追加'}</h2>
+    <div class="form-grid">
+      <input type="text" id="ev-title" placeholder="予定名" value="${ev ? esc(ev.title) : ''}">
+      <select id="ev-member">
+        ${CONFIG.MEMBERS.map((m) => `<option ${ev && ev.member === m.name ? 'selected' : ''}>${esc(m.name)}</option>`).join('')}
+      </select>
+      <div class="form-2col">
+        <input type="date" id="ev-date" value="${ev ? ev.event_date : state.calSelected}">
+        <input type="time" id="ev-time" value="${ev && ev.start_time ? ev.start_time.slice(0, 5) : ''}">
+      </div>
+      <input type="text" id="ev-note" placeholder="メモ（任意）" value="${ev && ev.note ? esc(ev.note) : ''}">
+      <button class="btn-primary" id="ev-ok">${ev ? '保存する' : '追加する'}</button>
+      ${ev ? '<button class="btn-danger-ghost" id="ev-del">この予定を削除する</button>' : ''}
+    </div>`);
+
+  $('#ev-ok').addEventListener('click', async () => {
+    const title = $('#ev-title').value.trim();
+    const date = $('#ev-date').value;
+    if (!title || !date) return toast('予定名と日付を入れてください');
+    const payload = {
+      title, member: $('#ev-member').value, event_date: date,
+      start_time: $('#ev-time').value || null, note: $('#ev-note').value.trim() || null,
+    };
+    const q = ev ? sb.from('events').update(payload).eq('id', ev.id) : sb.from('events').insert(payload);
+    const { error } = await q;
+    closeModal();
+    if (error) return dbErr(error, '保存に失敗しました');
+    state.calSelected = date;
+    await loadTable('events'); rerender();
+  });
+  if (ev) $('#ev-del').addEventListener('click', async () => {
+    if (!confirm(`「${ev.title}」を削除しますか？`)) return;
+    const { error } = await sb.from('events').delete().eq('id', ev.id);
+    closeModal();
+    if (error) return dbErr(error, '削除に失敗しました');
+    await loadTable('events'); rerender();
+  });
+}
+
+/* ============================================================
+ * 起動
+ * ============================================================ */
+async function startApp() {
+  $('#view-login').classList.remove('active');
+  $('#bottom-nav').classList.add('show');
+  sb = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+
+  // 更新月セレクトを生成
+  $('#sub-month').innerHTML = '<option value="">更新月（任意）</option>' +
+    [...Array(12)].map((_, i) => `<option value="${i + 1}">${i + 1}月</option>`).join('');
+  $('#pantry-date').value = dstr(addDays(new Date(), 7));
+
+  try {
+    await loadAll();
+  } catch (e) {
+    console.error(e);
+    showErr('データの読み込みに失敗しました。setup.sql を実行済みか確認してください。');
+  }
+  subscribeRealtime();
+  showView('home');
+}
+
+(function boot() {
+  if (localStorage.getItem('gp_auth') === CONFIG.PASS_HASH) {
+    startApp();
+  } else {
+    $('#view-login').classList.add('active');
+  }
+})();
+</script>
+</body>
+</html>
