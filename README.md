@@ -32,14 +32,13 @@ Supabase ダッシュボード（**プロジェクト2** の方）→ SQL Editor
 
 ### 2. 家族メンバー名を書き換える
 
-`index.html` の `CONFIG.MEMBERS` を実際の家族に合わせて編集：
+`index.html` の `CONFIG.MEMBERS` を実際の家族に合わせて編集（設定済み）：
 
 ```js
 MEMBERS: [
-  { name: 'パパ', color: '#3b82f6' },   // 青
-  { name: 'ママ', color: '#ec4899' },   // ピンク
-  { name: '子ども1', color: '#10b981' }, // 緑
-  { name: '子ども2', color: '#f59e0b' }, // オレンジ
+  { name: 'のり', color: '#3b82f6' },   // 青
+  { name: 'てり', color: '#ec4899' },   // ピンク
+  { name: 'ゆりあ', color: '#10b981' }, // 緑
 ],
 ```
 
