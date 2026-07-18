@@ -29,6 +29,8 @@ html { font-size: 16px; }
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
   background: var(--bg); color: var(--text);
+  /* iPhoneのステータスバー（時計・電池表示）やノッチと重ならないための安全余白 */
+  padding-top: env(safe-area-inset-top);
   padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom));
 }
 button { font-family: inherit; font-size: 1rem; border: none; background: none; cursor: pointer; color: inherit; }
