@@ -73,8 +73,10 @@ create table if not exists events (
   id uuid primary key default gen_random_uuid(),
   title text not null,
   member text not null,
-  event_date date not null,
-  start_time time,
+  event_date date not null,    -- 開始日
+  end_date date,               -- 終了日（nullなら単日の予定）
+  start_time time,             -- 開始時刻（nullなら終日）
+  end_time time,               -- 終了時刻
   note text,
   created_at timestamptz not null default now()
 );

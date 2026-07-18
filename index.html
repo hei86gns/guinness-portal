@@ -88,7 +88,7 @@ input, select { font-family: inherit; font-size: 1rem; }
 .today-event { display: flex; align-items: center; gap: 10px; padding: 9px 2px; }
 .today-event + .today-event { border-top: 1px solid var(--line); }
 .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-.today-event .t-time { font-size: .8rem; color: var(--text-sub); width: 44px; flex-shrink: 0; }
+.today-event .t-time { font-size: .78rem; color: var(--text-sub); width: 52px; flex-shrink: 0; line-height: 1.25; }
 .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .tile {
   position: relative; background: var(--card); border-radius: var(--radius);
@@ -178,6 +178,7 @@ input, select { font-family: inherit; font-size: 1rem; }
 }
 .form-grid input:focus, .form-grid select:focus { outline: none; border-color: var(--brand); }
 .form-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.f-label { display: block; font-size: .72rem; color: var(--text-sub); font-weight: 600; margin: 2px 2px 4px; }
 
 /* ---------- 車予約 ---------- */
 .week-nav { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 10px; }
@@ -220,7 +221,7 @@ input, select { font-family: inherit; font-size: 1rem; }
 .cal-dots .dot { width: 6px; height: 6px; }
 .day-event { display: flex; align-items: center; gap: 10px; padding: 11px 2px; }
 .day-event + .day-event { border-top: 1px solid var(--line); }
-.day-event .t-time { font-size: .8rem; color: var(--text-sub); width: 44px; flex-shrink: 0; }
+.day-event .t-time { font-size: .78rem; color: var(--text-sub); width: 52px; flex-shrink: 0; line-height: 1.25; }
 .day-event .title { flex: 1; word-break: break-all; }
 .sun { color: var(--danger); } .sat { color: #2563eb; }
 
@@ -287,7 +288,7 @@ input, select { font-family: inherit; font-size: 1rem; }
     <button class="tile" data-goto="calendar"><span class="icon">📅</span><span class="label">カレンダー</span></button>
     <button class="tile" id="logout-tile"><span class="icon">🔒</span><span class="label">ロックする</span></button>
   </div>
-  <div style="text-align:center;color:var(--text-sub);font-size:.7rem;margin-top:18px">v0.1.2</div>
+  <div style="text-align:center;color:var(--text-sub);font-size:.7rem;margin-top:18px">v0.2.0</div>
 </div>
 
 <!-- 買い物リスト -->
@@ -441,6 +442,26 @@ function mondayOf(d) {
   return x;
 }
 
+/* ---------- 予定（期間対応）ヘルパー ---------- */
+const evEndDate = (e) => e.end_date || e.event_date;           // 終了日（未設定なら当日）
+const eventCovers = (e, ds) => e.event_date <= ds && ds <= evEndDate(e); // その日が期間内か
+const fmtMD = (s) => `${Number(s.slice(5, 7))}/${Number(s.slice(8, 10))}`;
+function evTimeLabel(e, ds) {
+  const st = e.start_time ? e.start_time.slice(0, 5) : '';
+  const et = e.end_time ? e.end_time.slice(0, 5) : '';
+  if (evEndDate(e) === e.event_date) {           // 単日の予定
+    if (st && et) return `${st}<br>〜${et}`;
+    if (st) return st;
+    if (et) return `〜${et}`;
+    return '終日';
+  }
+  if (ds === e.event_date) return st ? `${st}〜` : '開始日';    // 期間の初日
+  if (ds === evEndDate(e)) return et ? `〜${et}` : '最終日';    // 期間の最終日
+  return '期間中';
+}
+const evPeriodNote = (e) => evEndDate(e) !== e.event_date
+  ? `<small style="color:var(--text-sub)">📆 ${fmtMD(e.event_date)}〜${fmtMD(evEndDate(e))}</small>` : '';
+
 /* ---------- トースト ---------- */
 let toastTimer = null;
 function toast(msg, ms = 2500) {
@@ -569,13 +590,13 @@ function subscribeRealtime() {
 function renderHome() {
   const now = new Date();
   $('#home-date').textContent = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日（${WDAYS[now.getDay()]}）`;
-  const todays = state.events.filter((e) => e.event_date === todayStr()).slice(0, 3);
+  const todays = state.events.filter((e) => eventCovers(e, todayStr())).slice(0, 3);
   $('#home-today').innerHTML = todays.length
     ? todays.map((e) => `
       <div class="today-event">
         <span class="dot" style="background:${memberColor(e.member)}"></span>
-        <span class="t-time">${e.start_time ? esc(e.start_time.slice(0, 5)) : '終日'}</span>
-        <span>${esc(e.title)}</span>
+        <span class="t-time">${evTimeLabel(e, todayStr())}</span>
+        <span>${esc(e.title)} ${evPeriodNote(e)}</span>
       </div>`).join('')
     : '<div class="empty">今日の予定はありません</div>';
   renderBadges();
@@ -976,7 +997,7 @@ function renderCalendar() {
     const d = addDays(gridStart, i);
     const ds = dstr(d);
     const inMonth = d.getMonth() === c.getMonth();
-    const dots = state.events.filter((e) => e.event_date === ds).slice(0, 4)
+    const dots = state.events.filter((e) => eventCovers(e, ds)).slice(0, 4)
       .map((e) => `<span class="dot" style="background:${memberColor(e.member)}"></span>`).join('');
     html += `
       <div class="cal-cell ${inMonth ? '' : 'dim'} ${ds === todayStr() ? 'today' : ''} ${ds === state.calSelected ? 'selected' : ''}" data-date="${ds}">
@@ -992,13 +1013,13 @@ function renderCalDayList() {
   const ds = state.calSelected;
   const d = new Date(ds + 'T00:00:00');
   $('#cal-sel-label').textContent = `${d.getMonth() + 1}月${d.getDate()}日（${WDAYS[d.getDay()]}）の予定`;
-  const evs = state.events.filter((e) => e.event_date === ds);
+  const evs = state.events.filter((e) => eventCovers(e, ds));
   $('#cal-day-list').innerHTML = evs.length
     ? evs.map((e) => `
       <div class="day-event" data-id="${e.id}">
         <span class="dot" style="background:${memberColor(e.member)}"></span>
-        <span class="t-time">${e.start_time ? esc(e.start_time.slice(0, 5)) : '終日'}</span>
-        <span class="title">${esc(e.title)}${e.note ? `<br><small style="color:var(--text-sub)">${esc(e.note)}</small>` : ''}</span>
+        <span class="t-time">${evTimeLabel(e, ds)}</span>
+        <span class="title">${esc(e.title)} ${evPeriodNote(e)}${e.note ? `<br><small style="color:var(--text-sub)">${esc(e.note)}</small>` : ''}</span>
         <span style="color:#cbd5e1">›</span>
       </div>`).join('')
     : '<div class="empty">予定はありません</div>';
@@ -1030,8 +1051,12 @@ function openEventModal(id) {
         ${CONFIG.MEMBERS.map((m) => `<option ${ev && ev.member === m.name ? 'selected' : ''}>${esc(m.name)}</option>`).join('')}
       </select>
       <div class="form-2col">
-        <input type="date" id="ev-date" value="${ev ? ev.event_date : state.calSelected}">
-        <input type="time" id="ev-time" value="${ev && ev.start_time ? ev.start_time.slice(0, 5) : ''}">
+        <div><span class="f-label">開始日</span><input type="date" id="ev-date" value="${ev ? ev.event_date : state.calSelected}"></div>
+        <div><span class="f-label">開始時刻（任意）</span><input type="time" id="ev-time" value="${ev && ev.start_time ? ev.start_time.slice(0, 5) : ''}"></div>
+      </div>
+      <div class="form-2col">
+        <div><span class="f-label">終了日（任意）</span><input type="date" id="ev-end-date" value="${ev && ev.end_date ? ev.end_date : ''}"></div>
+        <div><span class="f-label">終了時刻（任意）</span><input type="time" id="ev-end-time" value="${ev && ev.end_time ? ev.end_time.slice(0, 5) : ''}"></div>
       </div>
       <input type="text" id="ev-note" placeholder="メモ（任意）" value="${ev && ev.note ? esc(ev.note) : ''}">
       <button class="btn-primary" id="ev-ok">${ev ? '保存する' : '追加する'}</button>
@@ -1041,10 +1066,18 @@ function openEventModal(id) {
   $('#ev-ok').addEventListener('click', async () => {
     const title = $('#ev-title').value.trim();
     const date = $('#ev-date').value;
-    if (!title || !date) return toast('予定名と日付を入れてください');
+    if (!title || !date) return toast('予定名と開始日を入れてください');
+    const endDateRaw = $('#ev-end-date').value;
+    const startTime = $('#ev-time').value;
+    const endTime = $('#ev-end-time').value;
+    if (endDateRaw && endDateRaw < date) return toast('終了日は開始日以降にしてください');
+    const sameDay = !endDateRaw || endDateRaw === date;
+    if (sameDay && startTime && endTime && endTime <= startTime) return toast('終了時刻は開始時刻より後にしてください');
     const payload = {
       title, member: $('#ev-member').value, event_date: date,
-      start_time: $('#ev-time').value || null, note: $('#ev-note').value.trim() || null,
+      end_date: sameDay ? null : endDateRaw,
+      start_time: startTime || null, end_time: endTime || null,
+      note: $('#ev-note').value.trim() || null,
     };
     const q = ev ? sb.from('events').update(payload).eq('id', ev.id) : sb.from('events').insert(payload);
     const { error } = await q;
