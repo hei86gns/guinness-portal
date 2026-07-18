@@ -17,7 +17,10 @@ create table if not exists shopping_items (
   name text not null,
   checked boolean not null default false,
   source text not null default 'manual' check (source in ('manual', 'pantry')),
-  pantry_category text,
+  pantry_category text,       -- 在庫に戻す際の保管場所（冷蔵/冷凍/常温）
+  pantry_item_category text,  -- 在庫に戻す際の品目カテゴリ（野菜/調味料/...）
+  pantry_note text,           -- 在庫に戻す際の備考
+  pantry_use_count integer,   -- 在庫に戻す際に引き継ぐ使用回数
   created_at timestamptz not null default now(),
   checked_at timestamptz
 );
@@ -29,7 +32,10 @@ create table if not exists pantry_items (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   category text not null default '冷蔵' check (category in ('冷蔵', '冷凍', '常温')),
+  item_category text not null default 'その他',  -- 野菜/調味料/主食/飲料/肉魚類/果物/缶詰/お菓子/生活消耗品/その他
   expires_on date not null,
+  note text,                                     -- 備考（フリーテキスト）
+  use_count integer not null default 1,          -- 「よく使う順」ソート用
   created_at timestamptz not null default now()
 );
 
@@ -72,11 +78,13 @@ create table if not exists car_reservations (
 create table if not exists events (
   id uuid primary key default gen_random_uuid(),
   title text not null,
-  member text not null,
+  member text,                 -- 旧形式（v0.3.0以降は members を使用）
+  members text[],              -- 参加メンバー（複数可。'みんな' も可）
   event_date date not null,    -- 開始日
   end_date date,               -- 終了日（nullなら単日の予定）
   start_time time,             -- 開始時刻（nullなら終日）
   end_time time,               -- 終了時刻
+  skip_meals text[],           -- 食事不要（'朝','昼','夜' の組み合わせ）
   note text,
   created_at timestamptz not null default now()
 );

@@ -7,6 +7,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#1a5c4a">
 <title>ギネス家ポータル</title>
+<link rel="icon" type="image/png" href="assets/icon_180.png">
+<link rel="apple-touch-icon" href="assets/icon_180.png">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root {
@@ -84,6 +86,18 @@ input, select { font-family: inherit; font-size: 1rem; }
 .home-head { padding: 18px 2px 4px; }
 .home-date { color: var(--text-sub); font-size: .85rem; }
 .home-title { font-size: 1.45rem; font-weight: 800; color: var(--brand); }
+.home-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.home-guinness { width: 62px; height: 62px; border-radius: 16px; flex-shrink: 0; }
+/* メンバー選択チップ・食事不要チェック */
+.chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.sel-chip {
+  padding: 8px 14px; border-radius: 999px; border: 1.5px solid var(--line);
+  background: var(--card); font-size: .88rem; font-weight: 600; color: var(--text-sub);
+}
+.sel-chip.on { color: #fff; border-color: transparent; }
+.btn-close { color: var(--text-sub); font-weight: 600; padding: 12px 10px; width: 100%; }
+.meal-note { color: var(--warn); font-size: .72rem; font-weight: 600; }
+.mem-names { font-size: .72rem; color: var(--text-sub); }
 .section-label { font-size: .8rem; font-weight: 700; color: var(--text-sub); margin: 14px 2px 8px; }
 .today-event { display: flex; align-items: center; gap: 10px; padding: 9px 2px; }
 .today-event + .today-event { border-top: 1px solid var(--line); }
@@ -271,7 +285,7 @@ input, select { font-family: inherit; font-size: 1rem; }
 
 <!-- ログイン -->
 <div id="view-login" class="view">
-  <div class="login-logo">🏠</div>
+  <div class="login-logo"><img src="assets/guinness_home.png" alt="ギネス" style="width:96px;height:96px;border-radius:24px"></div>
   <div class="login-title">ギネス家ポータル</div>
   <input id="login-pass" type="password" placeholder="家族の合言葉" autocomplete="current-password">
   <button id="login-btn" class="btn-primary">入る</button>
@@ -282,7 +296,10 @@ input, select { font-family: inherit; font-size: 1rem; }
 <div id="view-home" class="view">
   <div class="home-head">
     <div class="home-date" id="home-date"></div>
-    <div class="home-title">ギネス家ポータル</div>
+    <div class="home-title-row">
+      <div class="home-title">ギネス家ポータル</div>
+      <img src="assets/guinness_home.png" alt="ギネス" class="home-guinness">
+    </div>
   </div>
   <div class="section-label">今日の予定</div>
   <div class="card" id="home-today"></div>
@@ -295,7 +312,7 @@ input, select { font-family: inherit; font-size: 1rem; }
     <button class="tile" data-goto="calendar"><span class="icon">📅</span><span class="label">カレンダー</span></button>
     <button class="tile" id="logout-tile"><span class="icon">🔒</span><span class="label">ロックする</span></button>
   </div>
-  <div style="text-align:center;color:var(--text-sub);font-size:.7rem;margin-top:18px">v0.2.1</div>
+  <div style="text-align:center;color:var(--text-sub);font-size:.7rem;margin-top:18px">v0.3.0</div>
 </div>
 
 <!-- 買い物リスト -->
@@ -318,8 +335,18 @@ input, select { font-family: inherit; font-size: 1rem; }
         <input type="date" id="pantry-date">
         <select id="pantry-cat"><option>冷蔵</option><option>冷凍</option><option>常温</option></select>
       </div>
+      <select id="pantry-itemcat"></select>
       <button class="btn-primary" id="pantry-add">在庫に追加</button>
     </div>
+  </div>
+  <div class="form-2col" style="margin-bottom:10px">
+    <select id="pantry-filter-itemcat" style="padding:10px 12px;border:1.5px solid var(--line);border-radius:12px;background:var(--card)"></select>
+    <select id="pantry-sort" style="padding:10px 12px;border:1.5px solid var(--line);border-radius:12px;background:var(--card)">
+      <option value="expiry">賞味期限の近い順</option>
+      <option value="freq">よく使う順</option>
+      <option value="newest">追加が新しい順</option>
+      <option value="name">名前順</option>
+    </select>
   </div>
   <div class="seg" id="pantry-seg">
     <button data-cat="all" class="active">すべて</button>
@@ -431,13 +458,19 @@ const WDAYS = ['日', '月', '火', '水', '木', '金', '土'];
 const dstr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const todayStr = () => dstr(new Date());
 const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
-const memberColor = (name) => (CONFIG.MEMBERS.find((m) => m.name === name) || {}).color || '#9ca3af';
+const MINNA = { name: 'みんな', color: '#8b5cf6' };  // 家族全員の予定用（紫）
+const memberColor = (name) => name === MINNA.name ? MINNA.color
+  : (CONFIG.MEMBERS.find((m) => m.name === name) || {}).color || '#9ca3af';
+const ITEM_CATS = ['野菜', '調味料', '主食', '飲料', '肉魚類', '果物', '缶詰', 'お菓子', '生活消耗品', 'その他'];
+const MEALS = ['朝', '昼', '夜'];
 
 let sb = null;
 const state = {
   shopping: [], pantry: [], subs: [], cars: [], events: [],
   currentView: 'home',
   pantryCat: 'all',
+  pantryItemCat: 'all',
+  pantrySort: 'expiry',
   carWeekStart: mondayOf(new Date()),
   calCursor: new Date(),
   calSelected: todayStr(),
@@ -468,6 +501,11 @@ function evTimeLabel(e, ds) {
 }
 const evPeriodNote = (e) => evEndDate(e) !== e.event_date
   ? `<small style="color:var(--text-sub)">📆 ${fmtMD(e.event_date)}〜${fmtMD(evEndDate(e))}</small>` : '';
+/* 参加メンバー（旧データは member 1人 → 配列に読み替え） */
+const evMembers = (e) => (e.members && e.members.length) ? e.members : (e.member ? [e.member] : []);
+const memberDots = (names) => names.map((n) => `<span class="dot" style="background:${memberColor(n)}"></span>`).join('');
+const mealNote = (e) => (e.skip_meals && e.skip_meals.length)
+  ? `<span class="meal-note">🍽️食事不要: ${e.skip_meals.map(esc).join('・')}</span>` : '';
 
 /* ---------- トースト ---------- */
 let toastTimer = null;
@@ -601,9 +639,9 @@ function renderHome() {
   $('#home-today').innerHTML = todays.length
     ? todays.map((e) => `
       <div class="today-event">
-        <span class="dot" style="background:${memberColor(e.member)}"></span>
+        <span style="display:flex;gap:2px;flex-shrink:0">${memberDots(evMembers(e))}</span>
         <span class="t-time">${evTimeLabel(e, todayStr())}</span>
-        <span>${esc(e.title)} ${evPeriodNote(e)}</span>
+        <span>${esc(e.title)} <span class="mem-names">${evMembers(e).map(esc).join('・')}</span> ${evPeriodNote(e)} ${mealNote(e)}</span>
       </div>`).join('')
     : '<div class="empty">今日の予定はありません</div>';
   renderBadges();
@@ -634,7 +672,7 @@ function renderShopping() {
     ? items.map((i) => `
       <div class="shop-item ${i.checked ? 'done' : ''}" data-id="${i.id}">
         <button class="shop-check" data-act="toggle">${i.checked ? '✓' : ''}</button>
-        <span class="name">${esc(i.name)}</span>
+        <span class="name" data-act="edit">${esc(i.name)}</span>
         ${i.source === 'pantry' ? '<span class="chip badge-stock">在庫切れ</span>' : ''}
         <button class="del-btn" data-act="del">✕</button>
       </div>`).join('')
@@ -666,6 +704,8 @@ $('#shop-list').addEventListener('click', async (e) => {
   if (act.dataset.act === 'del') {
     const { error } = await sb.from('shopping_items').delete().eq('id', item.id);
     if (error) return dbErr(error, '削除に失敗しました');
+  } else if (act.dataset.act === 'edit') {
+    return openShoppingEditModal(item);
   } else if (act.dataset.act === 'toggle') {
     const checked = !item.checked;
     const { error } = await sb.from('shopping_items')
@@ -689,22 +729,59 @@ $('#shop-clear-done').addEventListener('click', async () => {
   toast(`${done.length}件を削除しました`);
 });
 
+/* 買い物品目の編集モーダル */
+function openShoppingEditModal(item) {
+  openModal(`
+    <h2>🛒 品目を編集</h2>
+    <div class="form-grid">
+      <input type="text" id="se-name" value="${esc(item.name)}">
+      <button class="btn-primary" id="se-ok">保存する</button>
+      <button class="btn-danger-ghost" id="se-del">削除する</button>
+      <button class="btn-close" id="se-close">閉じる</button>
+    </div>`);
+  $('#se-close').addEventListener('click', closeModal);
+  $('#se-ok').addEventListener('click', async () => {
+    const name = $('#se-name').value.trim();
+    if (!name) return toast('品名を入れてください');
+    const { error } = await sb.from('shopping_items').update({ name }).eq('id', item.id);
+    closeModal();
+    if (error) return dbErr(error, '保存に失敗しました');
+    await loadTable('shopping_items'); rerender();
+  });
+  $('#se-del').addEventListener('click', async () => {
+    if (!confirm(`「${item.name}」を削除しますか？`)) return;
+    const { error } = await sb.from('shopping_items').delete().eq('id', item.id);
+    closeModal();
+    if (error) return dbErr(error, '削除に失敗しました');
+    await loadTable('shopping_items'); rerender();
+  });
+}
+
 /* 購入品を在庫に反映するモーダル（賞味期限を入れるだけ） */
 function openPantryReflectModal(item) {
   const def = dstr(addDays(new Date(), 7));
   openModal(`
     <h2>「${esc(item.name)}」を在庫に追加</h2>
     <div class="form-grid">
-      <label style="font-size:.8rem;color:var(--text-sub)">賞味期限</label>
+      <span class="f-label">賞味期限</span>
       <input type="date" id="rf-date" value="${def}">
-      <select id="rf-cat">
-        ${['冷蔵', '冷凍', '常温'].map((c) => `<option ${c === (item.pantry_category || '冷蔵') ? 'selected' : ''}>${c}</option>`).join('')}
-      </select>
+      <div class="form-2col">
+        <select id="rf-cat">
+          ${['冷蔵', '冷凍', '常温'].map((c) => `<option ${c === (item.pantry_category || '冷蔵') ? 'selected' : ''}>${c}</option>`).join('')}
+        </select>
+        <select id="rf-itemcat">
+          ${ITEM_CATS.map((c) => `<option ${c === (item.pantry_item_category || 'その他') ? 'selected' : ''}>${c}</option>`).join('')}
+        </select>
+      </div>
       <button class="btn-primary" id="rf-ok">在庫に追加する</button>
+      <button class="btn-close" id="rf-close">閉じる</button>
     </div>`);
+  $('#rf-close').addEventListener('click', closeModal);
   $('#rf-ok').addEventListener('click', async () => {
     const { error } = await sb.from('pantry_items').insert({
-      name: item.name, category: $('#rf-cat').value, expires_on: $('#rf-date').value,
+      name: item.name, category: $('#rf-cat').value, item_category: $('#rf-itemcat').value,
+      expires_on: $('#rf-date').value, note: item.pantry_note || null,
+      use_count: (item.pantry_use_count || 0) + 1,   // 循環するたびに「よく使う」度が上がる
     });
     closeModal();
     if (error) return dbErr(error, '在庫への追加に失敗しました');
@@ -723,24 +800,38 @@ function daysLeft(expiresOn) {
 }
 function expChip(expiresOn) {
   const n = daysLeft(expiresOn);
-  const md = `${Number(expiresOn.slice(5, 7))}/${Number(expiresOn.slice(8, 10))}`;
-  if (n < 0) return `<span class="exp exp-red">期限切れ（${md}）</span>`;
-  if (n === 0) return `<span class="exp exp-red">今日まで</span>`;
-  if (n <= 3) return `<span class="exp exp-orange">あと${n}日（${md}）</span>`;
-  return `<span class="exp exp-gray">${md}まで</span>`;
+  const ymd = `${expiresOn.slice(0, 4)}/${Number(expiresOn.slice(5, 7))}/${Number(expiresOn.slice(8, 10))}`;
+  if (n < 0) return `<span class="exp exp-red">期限切れ（${ymd}）</span>`;
+  if (n === 0) return `<span class="exp exp-red">今日まで（${ymd}）</span>`;
+  if (n <= 3) return `<span class="exp exp-orange">あと${n}日（${ymd}）</span>`;
+  return `<span class="exp exp-gray">${ymd}まで</span>`;
 }
 
+const PANTRY_SORTS = {
+  expiry: (a, b) => a.expires_on.localeCompare(b.expires_on),
+  freq: (a, b) => (b.use_count || 1) - (a.use_count || 1),
+  newest: (a, b) => b.created_at.localeCompare(a.created_at),
+  name: (a, b) => a.name.localeCompare(b.name, 'ja'),
+};
+
 function renderPantry() {
-  const items = state.pantry.filter((i) => state.pantryCat === 'all' || i.category === state.pantryCat);
+  const items = state.pantry
+    .filter((i) => state.pantryCat === 'all' || i.category === state.pantryCat)
+    .filter((i) => state.pantryItemCat === 'all' || (i.item_category || 'その他') === state.pantryItemCat)
+    .sort(PANTRY_SORTS[state.pantrySort] || PANTRY_SORTS.expiry);
   $('#pantry-list').innerHTML = items.length
     ? items.map((i) => `
       <div class="pantry-item" data-id="${i.id}">
-        <span class="name">${esc(i.name)}<br>${expChip(i.expires_on)}</span>
-        <span class="chip" style="background:#eef2f7;color:var(--text-sub)">${esc(i.category)}</span>
+        <span class="name" data-act="edit">${esc(i.name)}
+          <span class="chip" style="background:#eef2f7;color:var(--text-sub)">${esc(i.item_category || 'その他')}</span>
+          <span class="chip" style="background:#e6f2ee;color:var(--brand)">${esc(i.category)}</span><br>
+          ${expChip(i.expires_on)}
+          ${i.note ? `<br><small style="color:var(--text-sub)">📝 ${esc(i.note)}</small>` : ''}
+        </span>
         <button class="out-btn" data-act="out">切れた🛒</button>
         <button class="del-btn" data-act="del">✕</button>
       </div>`).join('')
-    : '<div class="empty">在庫はありません</div>';
+    : '<div class="empty">該当する在庫はありません</div>';
 }
 
 $('#pantry-seg').addEventListener('click', (e) => {
@@ -755,11 +846,15 @@ $('#pantry-add').addEventListener('click', async () => {
   const name = $('#pantry-name').value.trim();
   const date = $('#pantry-date').value;
   if (!name || !date) return toast('品名と賞味期限を入れてください');
-  const { error } = await sb.from('pantry_items').insert({ name, category: $('#pantry-cat').value, expires_on: date });
+  const { error } = await sb.from('pantry_items').insert({
+    name, category: $('#pantry-cat').value, item_category: $('#pantry-itemcat').value, expires_on: date,
+  });
   if (error) return dbErr(error, '追加に失敗しました');
   $('#pantry-name').value = '';
   await loadTable('pantry_items'); rerender();
 });
+$('#pantry-filter-itemcat').addEventListener('change', (e) => { state.pantryItemCat = e.target.value; renderPantry(); });
+$('#pantry-sort').addEventListener('change', (e) => { state.pantrySort = e.target.value; renderPantry(); });
 $('#pantry-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#pantry-add').click(); });
 
 $('#pantry-list').addEventListener('click', async (e) => {
@@ -769,9 +864,15 @@ $('#pantry-list').addEventListener('click', async (e) => {
   const item = state.pantry.find((i) => i.id === row.dataset.id);
   if (!item) return;
 
-  if (act.dataset.act === 'out') {
-    // 在庫切れ → 買い物リストへワンタップ追加（カテゴリを覚えて循環させる）
-    const { error: e1 } = await sb.from('shopping_items').insert({ name: item.name, source: 'pantry', pantry_category: item.category });
+  if (act.dataset.act === 'edit') {
+    return openPantryEditModal(item);
+  } else if (act.dataset.act === 'out') {
+    // 在庫切れ → 買い物リストへワンタップ追加（カテゴリ・備考・使用回数を覚えて循環させる）
+    const { error: e1 } = await sb.from('shopping_items').insert({
+      name: item.name, source: 'pantry', pantry_category: item.category,
+      pantry_item_category: item.item_category || 'その他',
+      pantry_note: item.note || null, pantry_use_count: item.use_count || 1,
+    });
     if (e1) return dbErr(e1, '買い物リストへの追加に失敗しました');
     const { error: e2 } = await sb.from('pantry_items').delete().eq('id', item.id);
     if (e2) return dbErr(e2, '在庫の更新に失敗しました');
@@ -785,6 +886,48 @@ $('#pantry-list').addEventListener('click', async (e) => {
   rerender();
 });
 
+/* 在庫アイテムの編集モーダル */
+function openPantryEditModal(item) {
+  openModal(`
+    <h2>🥚 在庫を編集</h2>
+    <div class="form-grid">
+      <input type="text" id="pe-name" value="${esc(item.name)}">
+      <div class="form-2col">
+        <div><span class="f-label">賞味期限</span><input type="date" id="pe-date" value="${item.expires_on}"></div>
+        <div><span class="f-label">保管場所</span><select id="pe-cat">
+          ${['冷蔵', '冷凍', '常温'].map((c) => `<option ${c === item.category ? 'selected' : ''}>${c}</option>`).join('')}
+        </select></div>
+      </div>
+      <div><span class="f-label">品目カテゴリ</span><select id="pe-itemcat">
+        ${ITEM_CATS.map((c) => `<option ${c === (item.item_category || 'その他') ? 'selected' : ''}>${c}</option>`).join('')}
+      </select></div>
+      <input type="text" id="pe-note" placeholder="備考（例：開封済み）" value="${item.note ? esc(item.note) : ''}">
+      <button class="btn-primary" id="pe-ok">保存する</button>
+      <button class="btn-danger-ghost" id="pe-del">削除する</button>
+      <button class="btn-close" id="pe-close">閉じる</button>
+    </div>`);
+  $('#pe-close').addEventListener('click', closeModal);
+  $('#pe-ok').addEventListener('click', async () => {
+    const name = $('#pe-name').value.trim();
+    const date = $('#pe-date').value;
+    if (!name || !date) return toast('品名と賞味期限を入れてください');
+    const { error } = await sb.from('pantry_items').update({
+      name, expires_on: date, category: $('#pe-cat').value,
+      item_category: $('#pe-itemcat').value, note: $('#pe-note').value.trim() || null,
+    }).eq('id', item.id);
+    closeModal();
+    if (error) return dbErr(error, '保存に失敗しました');
+    await loadTable('pantry_items'); rerender();
+  });
+  $('#pe-del').addEventListener('click', async () => {
+    if (!confirm(`「${item.name}」を在庫から削除しますか？`)) return;
+    const { error } = await sb.from('pantry_items').delete().eq('id', item.id);
+    closeModal();
+    if (error) return dbErr(error, '削除に失敗しました');
+    await loadTable('pantry_items'); rerender();
+  });
+}
+
 /* ============================================================
  * サブスク（優先度3）
  * ============================================================ */
@@ -797,7 +940,7 @@ function renderSubs() {
   $('#subs-list').innerHTML = state.subs.length
     ? state.subs.map((s) => `
       <div class="sub-item" data-id="${s.id}">
-        <div class="info">
+        <div class="info" data-act="edit">
           <div class="name">${esc(s.name)}
             ${s.cycle === 'yearly' && s.renewal_month === m ? '<span class="chip badge-renew">今月更新</span>' : ''}
           </div>
@@ -824,13 +967,59 @@ $('#sub-add').addEventListener('click', async () => {
 
 $('#subs-list').addEventListener('click', async (e) => {
   const row = e.target.closest('.sub-item');
-  if (!row || !e.target.closest('[data-act="del"]')) return;
+  const act = e.target.closest('[data-act]');
+  if (!row || !act) return;
   const item = state.subs.find((s) => s.id === row.dataset.id);
-  if (!item || !confirm(`「${item.name}」を削除しますか？`)) return;
+  if (!item) return;
+  if (act.dataset.act === 'edit') return openSubEditModal(item);
+  if (!confirm(`「${item.name}」を削除しますか？`)) return;
   const { error } = await sb.from('subscriptions').delete().eq('id', item.id);
   if (error) return dbErr(error, '削除に失敗しました');
   await loadTable('subscriptions'); rerender();
 });
+
+/* サブスクの編集モーダル */
+function openSubEditModal(item) {
+  openModal(`
+    <h2>💳 サブスクを編集</h2>
+    <div class="form-grid">
+      <input type="text" id="sb-name" value="${esc(item.name)}">
+      <div class="form-2col">
+        <div><span class="f-label">金額（円）</span><input type="number" id="sb-amount" inputmode="numeric" min="0" value="${item.amount}"></div>
+        <div><span class="f-label">支払い周期</span><select id="sb-cycle">
+          <option value="monthly" ${item.cycle === 'monthly' ? 'selected' : ''}>月額</option>
+          <option value="yearly" ${item.cycle === 'yearly' ? 'selected' : ''}>年額</option>
+        </select></div>
+      </div>
+      <div><span class="f-label">更新月（任意）</span><select id="sb-month">
+        <option value="">なし</option>
+        ${[...Array(12)].map((_, i) => `<option value="${i + 1}" ${item.renewal_month === i + 1 ? 'selected' : ''}>${i + 1}月</option>`).join('')}
+      </select></div>
+      <button class="btn-primary" id="sb-ok">保存する</button>
+      <button class="btn-danger-ghost" id="sb-del">削除する</button>
+      <button class="btn-close" id="sb-close">閉じる</button>
+    </div>`);
+  $('#sb-close').addEventListener('click', closeModal);
+  $('#sb-ok').addEventListener('click', async () => {
+    const name = $('#sb-name').value.trim();
+    const amount = parseInt($('#sb-amount').value, 10);
+    if (!name || !(amount >= 0)) return toast('サービス名と金額を入れてください');
+    const { error } = await sb.from('subscriptions').update({
+      name, amount, cycle: $('#sb-cycle').value,
+      renewal_month: $('#sb-month').value ? parseInt($('#sb-month').value, 10) : null,
+    }).eq('id', item.id);
+    closeModal();
+    if (error) return dbErr(error, '保存に失敗しました');
+    await loadTable('subscriptions'); rerender();
+  });
+  $('#sb-del').addEventListener('click', async () => {
+    if (!confirm(`「${item.name}」を削除しますか？`)) return;
+    const { error } = await sb.from('subscriptions').delete().eq('id', item.id);
+    closeModal();
+    if (error) return dbErr(error, '削除に失敗しました');
+    await loadTable('subscriptions'); rerender();
+  });
+}
 
 /* ============================================================
  * 車予約（優先度4） 週タイムライン 6:00-24:00
@@ -992,8 +1181,8 @@ function openCarDetail(id) {
 function renderCalendar() {
   const c = state.calCursor;
   $('#cal-label').textContent = `${c.getFullYear()}年${c.getMonth() + 1}月`;
-  // 凡例（固定表示）
-  $('#cal-legend').innerHTML = CONFIG.MEMBERS.map((m) =>
+  // 凡例（固定表示・「みんな」含む）
+  $('#cal-legend').innerHTML = [...CONFIG.MEMBERS, MINNA].map((m) =>
     `<span class="lg"><span class="dot" style="background:${m.color}"></span>${esc(m.name)}</span>`).join('');
 
   const first = new Date(c.getFullYear(), c.getMonth(), 1);
@@ -1004,8 +1193,9 @@ function renderCalendar() {
     const d = addDays(gridStart, i);
     const ds = dstr(d);
     const inMonth = d.getMonth() === c.getMonth();
-    const dots = state.events.filter((e) => eventCovers(e, ds)).slice(0, 4)
-      .map((e) => `<span class="dot" style="background:${memberColor(e.member)}"></span>`).join('');
+    const dots = state.events.filter((e) => eventCovers(e, ds))
+      .flatMap((e) => evMembers(e)).slice(0, 4)
+      .map((n) => `<span class="dot" style="background:${memberColor(n)}"></span>`).join('');
     html += `
       <div class="cal-cell ${inMonth ? '' : 'dim'} ${ds === todayStr() ? 'today' : ''} ${ds === state.calSelected ? 'selected' : ''}" data-date="${ds}">
         <span class="d ${d.getDay() === 0 ? 'sun' : ''} ${d.getDay() === 6 ? 'sat' : ''}">${d.getDate()}</span>
@@ -1024,9 +1214,12 @@ function renderCalDayList() {
   $('#cal-day-list').innerHTML = evs.length
     ? evs.map((e) => `
       <div class="day-event" data-id="${e.id}">
-        <span class="dot" style="background:${memberColor(e.member)}"></span>
+        <span style="display:flex;gap:2px;flex-shrink:0">${memberDots(evMembers(e))}</span>
         <span class="t-time">${evTimeLabel(e, ds)}</span>
-        <span class="title">${esc(e.title)} ${evPeriodNote(e)}${e.note ? `<br><small style="color:var(--text-sub)">${esc(e.note)}</small>` : ''}</span>
+        <span class="title">${esc(e.title)}
+          <span class="mem-names">${evMembers(e).map(esc).join('・')}</span>
+          ${evPeriodNote(e)} ${mealNote(e)}
+          ${e.note ? `<br><small style="color:var(--text-sub)">${esc(e.note)}</small>` : ''}</span>
         <span style="color:#cbd5e1">›</span>
       </div>`).join('')
     : '<div class="empty">予定はありません</div>';
@@ -1054,9 +1247,11 @@ function openEventModal(id) {
     <h2>📅 ${ev ? '予定を編集' : '予定を追加'}</h2>
     <div class="form-grid">
       <input type="text" id="ev-title" placeholder="予定名" value="${ev ? esc(ev.title) : ''}">
-      <select id="ev-member">
-        ${CONFIG.MEMBERS.map((m) => `<option ${ev && ev.member === m.name ? 'selected' : ''}>${esc(m.name)}</option>`).join('')}
-      </select>
+      <div><span class="f-label">だれの予定？（複数選択可）</span>
+        <div class="chip-row" id="ev-members">
+          ${[...CONFIG.MEMBERS, MINNA].map((m) => `<button type="button" class="sel-chip" data-name="${esc(m.name)}" data-color="${m.color}">${esc(m.name)}</button>`).join('')}
+        </div>
+      </div>
       <div class="form-2col">
         <div><span class="f-label">開始日</span><input type="date" id="ev-date" value="${ev ? ev.event_date : state.calSelected}"></div>
         <div><span class="f-label">開始時刻（任意）</span><input type="time" id="ev-time" value="${ev && ev.start_time ? ev.start_time.slice(0, 5) : ''}"></div>
@@ -1065,10 +1260,44 @@ function openEventModal(id) {
         <div><span class="f-label">終了日（任意）</span><input type="date" id="ev-end-date" value="${ev && ev.end_date ? ev.end_date : ''}"></div>
         <div><span class="f-label">終了時刻（任意）</span><input type="time" id="ev-end-time" value="${ev && ev.end_time ? ev.end_time.slice(0, 5) : ''}"></div>
       </div>
+      <div><span class="f-label">食事不要（いらない食事をタップ）</span>
+        <div class="chip-row" id="ev-meals">
+          ${MEALS.map((m) => `<button type="button" class="sel-chip" data-meal="${m}">🍽️${m}</button>`).join('')}
+        </div>
+      </div>
       <input type="text" id="ev-note" placeholder="メモ（任意）" value="${ev && ev.note ? esc(ev.note) : ''}">
       <button class="btn-primary" id="ev-ok">${ev ? '保存する' : '追加する'}</button>
       ${ev ? '<button class="btn-danger-ghost" id="ev-del">この予定を削除する</button>' : ''}
+      <button class="btn-close" id="ev-close">閉じる</button>
     </div>`);
+
+  // メンバーチップ: 複数選択可。「みんな」は単独選択（他と同時に選べない）
+  const setChip = (b, on) => {
+    b.classList.toggle('on', on);
+    b.style.background = on ? b.dataset.color : '';
+    b.style.color = '';
+  };
+  const initMembers = ev ? evMembers(ev) : [];
+  $$('#ev-members .sel-chip').forEach((b) => {
+    setChip(b, initMembers.includes(b.dataset.name));
+    b.addEventListener('click', () => {
+      const isMinna = b.dataset.name === MINNA.name;
+      const turnOn = !b.classList.contains('on');
+      if (turnOn) {
+        if (isMinna) $$('#ev-members .sel-chip').forEach((x) => setChip(x, false));       // みんな→他を全解除
+        else setChip($('#ev-members .sel-chip[data-name="みんな"]'), false);              // 個人→みんなを解除
+      }
+      setChip(b, turnOn);
+    });
+  });
+  // 食事不要チップ
+  const initMeals = (ev && ev.skip_meals) || [];
+  $$('#ev-meals .sel-chip').forEach((b) => {
+    const set = (on) => { b.classList.toggle('on', on); b.style.background = on ? 'var(--warn)' : ''; };
+    set(initMeals.includes(b.dataset.meal));
+    b.addEventListener('click', () => set(!b.classList.contains('on')));
+  });
+  $('#ev-close').addEventListener('click', closeModal);
 
   $('#ev-ok').addEventListener('click', async () => {
     const title = $('#ev-title').value.trim();
@@ -1080,10 +1309,14 @@ function openEventModal(id) {
     if (endDateRaw && endDateRaw < date) return toast('終了日は開始日以降にしてください');
     const sameDay = !endDateRaw || endDateRaw === date;
     if (sameDay && startTime && endTime && endTime <= startTime) return toast('終了時刻は開始時刻より後にしてください');
+    const members = [...$$('#ev-members .sel-chip.on')].map((b) => b.dataset.name);
+    if (!members.length) return toast('だれの予定か選んでください');
+    const meals = [...$$('#ev-meals .sel-chip.on')].map((b) => b.dataset.meal);
     const payload = {
-      title, member: $('#ev-member').value, event_date: date,
+      title, members, member: members[0], event_date: date,
       end_date: sameDay ? null : endDateRaw,
       start_time: startTime || null, end_time: endTime || null,
+      skip_meals: meals.length ? meals : null,
       note: $('#ev-note').value.trim() || null,
     };
     const q = ev ? sb.from('events').update(payload).eq('id', ev.id) : sb.from('events').insert(payload);
@@ -1110,10 +1343,13 @@ async function startApp() {
   $('#bottom-nav').classList.add('show');
   sb = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
 
-  // 更新月セレクトを生成
+  // 更新月・品目カテゴリのセレクトを生成
   $('#sub-month').innerHTML = '<option value="">更新月（任意）</option>' +
     [...Array(12)].map((_, i) => `<option value="${i + 1}">${i + 1}月</option>`).join('');
   $('#pantry-date').value = dstr(addDays(new Date(), 7));
+  $('#pantry-itemcat').innerHTML = ITEM_CATS.map((c) => `<option ${c === 'その他' ? 'selected' : ''}>${c}</option>`).join('');
+  $('#pantry-filter-itemcat').innerHTML = '<option value="all">品目：すべて</option>' +
+    ITEM_CATS.map((c) => `<option value="${c}">${c}</option>`).join('');
 
   try {
     await loadAll();
