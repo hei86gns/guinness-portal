@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#1a5c4a">
 <title>ギネス家ポータル</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -30,7 +30,7 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
   background: var(--bg); color: var(--text);
   /* iPhoneのステータスバー（時計・電池表示）やノッチと重ならないための安全余白 */
-  padding-top: env(safe-area-inset-top);
+  padding-top: max(env(safe-area-inset-top), 0px);
   padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom));
 }
 button { font-family: inherit; font-size: 1rem; border: none; background: none; cursor: pointer; color: inherit; }
@@ -287,6 +287,7 @@ input, select { font-family: inherit; font-size: 1rem; }
     <button class="tile" data-goto="calendar"><span class="icon">📅</span><span class="label">カレンダー</span></button>
     <button class="tile" id="logout-tile"><span class="icon">🔒</span><span class="label">ロックする</span></button>
   </div>
+  <div style="text-align:center;color:var(--text-sub);font-size:.7rem;margin-top:18px">v0.1.2</div>
 </div>
 
 <!-- 買い物リスト -->
