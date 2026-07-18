@@ -172,9 +172,16 @@ input, select { font-family: inherit; font-size: 1rem; }
 .sub-item .price { font-weight: 700; white-space: nowrap; }
 .badge-renew { background: #fee2e2; color: var(--danger); }
 .form-grid { display: grid; gap: 8px; }
-.form-grid input[type="text"], .form-grid input[type="number"], .form-grid input[type="date"], .form-grid select {
-  width: 100%; padding: 11px 12px; border: 1.5px solid var(--line);
+.form-grid input[type="text"], .form-grid input[type="number"], .form-grid input[type="date"],
+.form-grid input[type="time"], .form-grid select {
+  width: 100%; min-width: 0; padding: 11px 12px; border: 1.5px solid var(--line);
   border-radius: 12px; background: var(--card);
+  -webkit-appearance: none; appearance: none;
+}
+.form-2col > div { min-width: 0; }
+/* iOSのdate/time入力は中身が空だと幅が潰れるため高さと表示を揃える */
+.form-grid input[type="date"], .form-grid input[type="time"] {
+  min-height: 46px; display: flex; align-items: center;
 }
 .form-grid input:focus, .form-grid select:focus { outline: none; border-color: var(--brand); }
 .form-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -288,7 +295,7 @@ input, select { font-family: inherit; font-size: 1rem; }
     <button class="tile" data-goto="calendar"><span class="icon">📅</span><span class="label">カレンダー</span></button>
     <button class="tile" id="logout-tile"><span class="icon">🔒</span><span class="label">ロックする</span></button>
   </div>
-  <div style="text-align:center;color:var(--text-sub);font-size:.7rem;margin-top:18px">v0.2.0</div>
+  <div style="text-align:center;color:var(--text-sub);font-size:.7rem;margin-top:18px">v0.2.1</div>
 </div>
 
 <!-- 買い物リスト -->
