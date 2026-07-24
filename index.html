@@ -432,9 +432,8 @@ input, select { font-family: inherit; font-size: 1rem; }
 const CONFIG = {
   SUPABASE_URL: 'https://zkqvqztadbzqwdwqhyjw.supabase.co',   // プロジェクト2（家族データ用・Kakeiboと同居）
   SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InprcXZxenRhZGJ6cXdkd3FoeWp3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI1MzYwNTUsImV4cCI6MjA5ODExMjA1NX0.qUEUX7Csd5mK4qPciGE-Zc_6TY_3888Faewkv99uFqU',
-  // 合言葉のSHA-256ハッシュ（初期値の合言葉: guinness）
+  // 合言葉の照合はサーバー側(Edge Function)で行うため、ここにはハッシュを置かない
   // 変更方法: README.md 参照
-  PASS_HASH: '8879addeb18c6b29e8b89960f3310224792fbe08e955aabc3956bd4f29f1bc72',
   // 家族メンバー（名前と色を家族に合わせて書き換える）
   MEMBERS: [
     { name: 'のり', color: '#3b82f6' },
@@ -442,6 +441,9 @@ const CONFIG = {
     { name: 'ゆりあ', color: '#10b981' },
   ],
 };
+
+// ログイン前から使うため、起動直後に一度だけ生成する
+let sb = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
 
 /* ============================================================
  * 同期設計メモ（tangocho supaLoad バグの教訓）
@@ -552,26 +554,40 @@ function dbErr(e, fallback) {
 /* ============================================================
  * 認証（家族共通の合言葉）
  * ============================================================ */
-async function sha256hex(text) {
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
-  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
-}
 async function tryLogin() {
   const pass = $('#login-pass').value.trim();
   if (!pass) return;
-  const h = await sha256hex(pass);
-  if (h === CONFIG.PASS_HASH) {
-    localStorage.setItem('gp_auth', h);
+  $('#login-btn').disabled = true;
+  $('#login-err').textContent = '';
+  try {
+    const res = await fetch(`${CONFIG.SUPABASE_URL}/functions/v1/verify-passphrase`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': CONFIG.SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${CONFIG.SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify({ passphrase: pass }),
+    });
+    const body = await res.json();
+    if (!res.ok || !body.access_token) {
+      $('#login-err').textContent = '合言葉がちがいます';
+      $('#login-pass').value = '';
+      return;
+    }
+    await sb.auth.setSession({ access_token: body.access_token, refresh_token: body.refresh_token });
     startApp();
-  } else {
-    $('#login-err').textContent = '合言葉がちがいます';
-    $('#login-pass').value = '';
+  } catch (e) {
+    console.error(e);
+    $('#login-err').textContent = '通信に失敗しました。時間をおいて試してください';
+  } finally {
+    $('#login-btn').disabled = false;
   }
 }
 $('#login-btn').addEventListener('click', tryLogin);
 $('#login-pass').addEventListener('keydown', (e) => { if (e.key === 'Enter') tryLogin(); });
-$('#logout-tile').addEventListener('click', () => {
-  localStorage.removeItem('gp_auth');
+$('#logout-tile').addEventListener('click', async () => {
+  await sb.auth.signOut();
   location.reload();
 });
 
@@ -1341,7 +1357,6 @@ function openEventModal(id) {
 async function startApp() {
   $('#view-login').classList.remove('active');
   $('#bottom-nav').classList.add('show');
-  sb = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
 
   // 更新月・品目カテゴリのセレクトを生成
   $('#sub-month').innerHTML = '<option value="">更新月（任意）</option>' +
@@ -1361,8 +1376,9 @@ async function startApp() {
   showView('home');
 }
 
-(function boot() {
-  if (localStorage.getItem('gp_auth') === CONFIG.PASS_HASH) {
+(async function boot() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) {
     startApp();
   } else {
     $('#view-login').classList.add('active');

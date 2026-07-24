@@ -100,14 +100,6 @@ alter publication supabase_realtime add table car_reservations;
 alter publication supabase_realtime add table events;
 
 -- ============================================================
--- （任意）RLS を有効にしたくなったら以下を実行
--- 合言葉方式のままでは anon キーで全操作可能なため、
--- 本格的に守るなら Supabase Auth 導入とセットで行うこと。
+-- RLS(行レベルセキュリティ)は v0.4.0 で導入済み。
+-- 実行手順は migration_v0.4.0_rls.sql と README.md「合言葉について」を参照。
 -- ============================================================
--- alter table shopping_items enable row level security;
--- alter table pantry_items enable row level security;
--- alter table subscriptions enable row level security;
--- alter table car_reservations enable row level security;
--- alter table events enable row level security;
--- create policy "family only" on shopping_items for all to authenticated using (true) with check (true);
--- （他テーブルも同様）
