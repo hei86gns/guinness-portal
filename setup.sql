@@ -91,6 +91,18 @@ create table if not exists events (
 create index if not exists idx_events_date on events (event_date);
 
 -- ------------------------------------------------------------
+-- 6. リンク&メモ（外部URL・時刻表など）
+-- ------------------------------------------------------------
+create table if not exists links (
+  id uuid primary key default gen_random_uuid(),
+  icon text not null default '🔗',
+  title text not null,
+  url text not null,
+  note text,
+  created_at timestamptz not null default now()
+);
+
+-- ------------------------------------------------------------
 -- Realtime 有効化（家族間のリアルタイム同期。二重買い防止の要）
 -- ------------------------------------------------------------
 alter publication supabase_realtime add table shopping_items;
@@ -98,8 +110,30 @@ alter publication supabase_realtime add table pantry_items;
 alter publication supabase_realtime add table subscriptions;
 alter publication supabase_realtime add table car_reservations;
 alter publication supabase_realtime add table events;
+alter publication supabase_realtime add table links;
+
+-- ------------------------------------------------------------
+-- RLS(行レベルセキュリティ): 認証済みの家族専用アカウントのみ
+-- アクセス可（v0.4.0〜。新規セットアップはこの時点から有効）
+-- 前提: 事前に「家族専用アカウント」をダッシュボードで作成しておくこと
+--   Authentication → Users → Add user（詳細はREADME.md参照）
+-- ------------------------------------------------------------
+alter table shopping_items    enable row level security;
+alter table pantry_items      enable row level security;
+alter table subscriptions     enable row level security;
+alter table car_reservations  enable row level security;
+alter table events            enable row level security;
+alter table links             enable row level security;
+
+create policy "family only" on shopping_items   for all to authenticated using (true) with check (true);
+create policy "family only" on pantry_items     for all to authenticated using (true) with check (true);
+create policy "family only" on subscriptions    for all to authenticated using (true) with check (true);
+create policy "family only" on car_reservations for all to authenticated using (true) with check (true);
+create policy "family only" on events           for all to authenticated using (true) with check (true);
+create policy "family only" on links            for all to authenticated using (true) with check (true);
 
 -- ============================================================
--- RLS(行レベルセキュリティ)は v0.4.0 で導入済み。
--- 実行手順は migration_v0.4.0_rls.sql と README.md「合言葉について」を参照。
+-- 既存インストール（v0.3.0以前からのアップグレード）は代わりに
+-- migration_v0.4.0_rls.sql → migration_v0.4.1.sql の順で適用すること
+-- （このsetup.sqlは新規セットアップ専用）
 -- ============================================================
