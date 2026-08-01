@@ -91,16 +91,28 @@ create table if not exists events (
 create index if not exists idx_events_date on events (event_date);
 
 -- ------------------------------------------------------------
--- 6. リンク&メモ（外部URL・時刻表など）
+-- 6. リンク&メモ（外部URL・時刻表・写真やPDFのメモなど）
+-- type: 'link'(URL必須) / 'memo'(URL不要、添付ファイルのみでも可)
+-- category: 自由入力（例: 交通、生活、情報）。タブ内の絞り込みに使用
+-- attachments: 添付ファイルの配列 [{path, name, mime, size}, ...]
+--              実体は storage の 'attachments' バケットに保存
 -- ------------------------------------------------------------
 create table if not exists links (
   id uuid primary key default gen_random_uuid(),
   icon text not null default '🔗',
   title text not null,
-  url text not null,
+  type text not null default 'link' check (type in ('link', 'memo')),
+  url text,
+  category text,
   note text,
+  attachments jsonb not null default '[]'::jsonb,
   created_at timestamptz not null default now()
 );
+
+-- 添付ファイル用ストレージバケット（非公開。合言葉でログインした家族のみアクセス可）
+insert into storage.buckets (id, name, public)
+values ('attachments', 'attachments', false)
+on conflict (id) do nothing;
 
 -- ------------------------------------------------------------
 -- Realtime 有効化（家族間のリアルタイム同期。二重買い防止の要）
@@ -132,8 +144,12 @@ create policy "family only" on car_reservations for all to authenticated using (
 create policy "family only" on events           for all to authenticated using (true) with check (true);
 create policy "family only" on links            for all to authenticated using (true) with check (true);
 
+create policy "family only select" on storage.objects for select to authenticated using (bucket_id = 'attachments');
+create policy "family only insert" on storage.objects for insert to authenticated with check (bucket_id = 'attachments');
+create policy "family only delete" on storage.objects for delete to authenticated using (bucket_id = 'attachments');
+
 -- ============================================================
 -- 既存インストール（v0.3.0以前からのアップグレード）は代わりに
--- migration_v0.4.0_rls.sql → migration_v0.4.1.sql の順で適用すること
--- （このsetup.sqlは新規セットアップ専用）
+-- migration_v0.4.0_rls.sql → migration_v0.4.1.sql → migration_v0.5.0.sql
+-- の順で適用すること（このsetup.sqlは新規セットアップ専用）
 -- ============================================================

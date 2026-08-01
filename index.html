@@ -254,6 +254,23 @@ input, select { font-family: inherit; font-size: 1rem; }
 .link-item .l-title { font-weight: 700; word-break: break-all; }
 .link-item .l-note { font-size: .78rem; color: var(--text-sub); word-break: break-all; }
 .link-item .l-open { color: var(--brand); font-weight: 700; padding: 8px 10px; flex-shrink: 0; }
+.l-cat { background: #eef2f7; color: var(--text-sub); }
+.attach-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.attach-thumb {
+  width: 56px; height: 56px; border-radius: 10px; object-fit: cover;
+  background: #eef2f7; flex-shrink: 0; border: 1px solid var(--line);
+}
+.attach-file {
+  display: flex; align-items: center; gap: 4px; width: 56px; height: 56px;
+  border-radius: 10px; background: #eef2f7; border: 1px solid var(--line);
+  font-size: .62rem; color: var(--text-sub); text-align: center; padding: 4px;
+  flex-direction: column; justify-content: center;
+}
+.attach-remove {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px;
+  border: 1px solid var(--line); border-radius: 10px; font-size: .8rem; margin: 3px 6px 3px 0;
+}
+.attach-remove button { color: var(--danger); font-weight: 700; }
 
 /* ---------- モーダル ---------- */
 #modal-overlay {
@@ -322,7 +339,7 @@ input, select { font-family: inherit; font-size: 1rem; }
     <button class="tile" data-goto="links"><span class="icon">📎</span><span class="label">リンク&メモ</span></button>
     <button class="tile" id="logout-tile"><span class="icon">🔒</span><span class="label">ロックする</span></button>
   </div>
-  <div style="text-align:center;color:var(--text-sub);font-size:.7rem;margin-top:18px">v0.4.1</div>
+  <div style="text-align:center;color:var(--text-sub);font-size:.7rem;margin-top:18px">v0.5.0</div>
 </div>
 
 <!-- 買い物リスト -->
@@ -425,16 +442,29 @@ input, select { font-family: inherit; font-size: 1rem; }
 <!-- リンク&メモ -->
 <div id="view-links" class="view">
   <div class="view-header"><h1>📎 リンク&メモ</h1></div>
+  <div class="seg" id="link-tabs">
+    <button type="button" data-type="link" class="active">🔗 リンク</button>
+    <button type="button" data-type="memo">📝 メモ</button>
+  </div>
   <div class="card">
     <div class="form-grid">
       <div class="form-2col">
         <input type="text" id="link-icon" placeholder="絵文字" maxlength="2" value="🔗" style="text-align:center">
-        <input type="text" id="link-title" placeholder="タイトル（例：ゴミ出しNotebookLM）">
+        <input type="text" id="link-title" placeholder="タイトル">
       </div>
       <input type="url" id="link-url" placeholder="URL（https://…）" inputmode="url">
-      <input type="text" id="link-note" placeholder="メモ（任意）">
+      <input type="text" id="link-category" placeholder="カテゴリ（例：交通、生活、情報）" list="link-cat-options">
+      <datalist id="link-cat-options"></datalist>
+      <textarea id="link-note" placeholder="メモ（任意）" rows="2" style="width:100%;padding:11px 12px;border:1.5px solid var(--line);border-radius:12px;background:var(--card);font-family:inherit;resize:vertical"></textarea>
+      <div>
+        <span class="f-label">写真・PDFを添付（任意・自動で圧縮されます）</span>
+        <input type="file" id="link-files" accept="image/*,application/pdf" multiple>
+      </div>
       <button class="btn-primary" id="link-add">追加する</button>
     </div>
+  </div>
+  <div class="form-2col" style="margin-bottom:10px">
+    <select id="link-filter-cat" style="padding:10px 12px;border:1.5px solid var(--line);border-radius:12px;background:var(--card)"></select>
   </div>
   <div class="card" id="link-list"></div>
 </div>
@@ -499,6 +529,8 @@ const state = {
   pantryCat: 'all',
   pantryItemCat: 'all',
   pantrySort: 'expiry',
+  linkTab: 'link',
+  linkCat: 'all',
   carWeekStart: mondayOf(new Date()),
   calCursor: new Date(),
   calSelected: todayStr(),
@@ -974,37 +1006,136 @@ function openPantryEditModal(item) {
 /* ============================================================
  * リンク&メモ
  * ============================================================ */
-function renderLinks() {
-  $('#link-list').innerHTML = state.links.length
-    ? state.links.map((l) => `
-      <div class="link-item" data-id="${l.id}">
-        <span class="l-icon">${esc(l.icon || '🔗')}</span>
-        <span class="l-info" data-act="edit">
-          <div class="l-title">${esc(l.title)}</div>
-          ${l.note ? `<div class="l-note">${esc(l.note)}</div>` : ''}
-        </span>
-        <a class="l-open" href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">開く ›</a>
-      </div>`).join('')
-    : '<div class="empty">登録されたリンクはありません</div>';
-}
+const ATTACH_BUCKET = 'attachments';
+const MAX_ATTACH_MB = 15;
 
 function normalizeUrl(url) {
   const u = url.trim();
   return /^https?:\/\//i.test(u) ? u : `https://${u}`;
 }
 
+/* 写真は長辺1600px・JPEG品質0.75に自動リサイズしてから保存（容量節約） */
+async function compressImage(file, maxDim = 1600, quality = 0.75) {
+  const img = await new Promise((resolve, reject) => {
+    const i = new Image();
+    i.onload = () => resolve(i);
+    i.onerror = reject;
+    i.src = URL.createObjectURL(file);
+  });
+  const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+  const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+  URL.revokeObjectURL(img.src);
+  return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
+}
+
+async function uploadAttachment(itemId, file) {
+  if (file.size > MAX_ATTACH_MB * 1024 * 1024) {
+    toast(`「${file.name}」は${MAX_ATTACH_MB}MBを超えるため添付できません`);
+    return null;
+  }
+  const isImage = file.type.startsWith('image/');
+  const blob = isImage ? await compressImage(file) : file;
+  const ext = isImage ? 'jpg' : (file.name.split('.').pop() || 'dat').toLowerCase();
+  const path = `${itemId}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const { error } = await sb.storage.from(ATTACH_BUCKET).upload(path, blob, {
+    contentType: isImage ? 'image/jpeg' : file.type,
+  });
+  if (error) { dbErr(error, `「${file.name}」のアップロードに失敗しました`); return null; }
+  return { path, name: file.name, mime: isImage ? 'image/jpeg' : file.type, size: blob.size };
+}
+
+function attachThumbHtml(a) {
+  return (a.mime || '').startsWith('image/')
+    ? `<img class="attach-thumb" data-path="${esc(a.path)}" alt="${esc(a.name)}">`
+    : `<a class="attach-file" data-path="${esc(a.path)}" target="_blank" rel="noopener noreferrer">📄<br>${esc((a.name || '').slice(0, 10))}</a>`;
+}
+
+/* 添付の実体は非公開バケットのため、表示のたびに署名付きURLをまとめて取得 */
+async function fillAttachUrls(root) {
+  const els = [...root.querySelectorAll('[data-path]')];
+  if (!els.length) return;
+  const paths = [...new Set(els.map((e) => e.dataset.path))];
+  const { data, error } = await sb.storage.from(ATTACH_BUCKET).createSignedUrls(paths, 3600);
+  if (error) return console.error(error);
+  const urlMap = Object.fromEntries((data || []).filter((d) => d.signedUrl).map((d) => [d.path, d.signedUrl]));
+  els.forEach((el) => {
+    const url = urlMap[el.dataset.path];
+    if (!url) return;
+    if (el.tagName === 'IMG') el.src = url; else el.href = url;
+  });
+}
+
+function renderLinks() {
+  const typeItems = state.links.filter((l) => (l.type || 'link') === state.linkTab);
+  const cats = [...new Set(typeItems.map((l) => l.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ja'));
+  $('#link-cat-options').innerHTML = cats.map((c) => `<option value="${esc(c)}">`).join('');
+  $('#link-filter-cat').innerHTML = '<option value="all">カテゴリ：すべて</option>' +
+    cats.map((c) => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  if (state.linkCat !== 'all' && !cats.includes(state.linkCat)) state.linkCat = 'all';
+  $('#link-filter-cat').value = state.linkCat;
+
+  const items = typeItems.filter((l) => state.linkCat === 'all' || l.category === state.linkCat);
+  $('#link-list').innerHTML = items.length
+    ? items.map((l) => `
+      <div class="link-item" data-id="${l.id}">
+        <span class="l-icon">${esc(l.icon || (l.type === 'memo' ? '📝' : '🔗'))}</span>
+        <span class="l-info" data-act="edit">
+          <div class="l-title">${esc(l.title)} ${l.category ? `<span class="chip l-cat">${esc(l.category)}</span>` : ''}</div>
+          ${l.note ? `<div class="l-note">${esc(l.note)}</div>` : ''}
+          ${(l.attachments && l.attachments.length) ? `<div class="attach-row">${l.attachments.map(attachThumbHtml).join('')}</div>` : ''}
+        </span>
+        ${l.url ? `<a class="l-open" href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">開く ›</a>` : ''}
+      </div>`).join('')
+    : `<div class="empty">${state.linkTab === 'link' ? '登録されたリンクはありません' : '登録されたメモはありません'}</div>`;
+  fillAttachUrls($('#link-list'));
+}
+
+$('#link-tabs').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-type]');
+  if (!b) return;
+  state.linkTab = b.dataset.type;
+  state.linkCat = 'all';
+  $$('#link-tabs button').forEach((x) => x.classList.toggle('active', x === b));
+  $('#link-url').style.display = state.linkTab === 'memo' ? 'none' : '';
+  $('#link-icon').value = state.linkTab === 'memo' ? '📝' : '🔗';
+  renderLinks();
+});
+$('#link-filter-cat').addEventListener('change', (e) => { state.linkCat = e.target.value; renderLinks(); });
+
 $('#link-add').addEventListener('click', async () => {
   const title = $('#link-title').value.trim();
+  const type = state.linkTab;
   const url = $('#link-url').value.trim();
-  if (!title || !url) return toast('タイトルとURLを入れてください');
-  const { error } = await sb.from('links').insert({
-    icon: $('#link-icon').value.trim() || '🔗',
-    title, url: normalizeUrl(url),
-    note: $('#link-note').value.trim() || null,
-  });
-  if (error) return dbErr(error, '追加に失敗しました');
-  $('#link-title').value = ''; $('#link-url').value = ''; $('#link-note').value = ''; $('#link-icon').value = '🔗';
-  await loadTable('links'); rerender();
+  if (!title) return toast('タイトルを入れてください');
+  if (type === 'link' && !url) return toast('URLを入れてください');
+  const files = [...$('#link-files').files];
+  $('#link-add').disabled = true;
+  try {
+    const { data, error } = await sb.from('links').insert({
+      icon: $('#link-icon').value.trim() || (type === 'memo' ? '📝' : '🔗'),
+      title, type, url: url ? normalizeUrl(url) : null,
+      category: $('#link-category').value.trim() || null,
+      note: $('#link-note').value.trim() || null,
+    }).select().single();
+    if (error) return dbErr(error, '追加に失敗しました');
+    if (files.length) {
+      const attachments = [];
+      for (const f of files) {
+        const a = await uploadAttachment(data.id, f);
+        if (a) attachments.push(a);
+      }
+      if (attachments.length) await sb.from('links').update({ attachments }).eq('id', data.id);
+    }
+    $('#link-title').value = ''; $('#link-url').value = ''; $('#link-note').value = '';
+    $('#link-category').value = ''; $('#link-files').value = '';
+    await loadTable('links'); rerender();
+    toast(type === 'memo' ? 'メモを追加しました' : 'リンクを追加しました');
+  } finally {
+    $('#link-add').disabled = false;
+  }
 });
 
 $('#link-list').addEventListener('click', (e) => {
@@ -1015,34 +1146,77 @@ $('#link-list').addEventListener('click', (e) => {
 });
 
 function openLinkEditModal(item) {
+  const isMemo = item.type === 'memo';
   openModal(`
-    <h2>📎 リンクを編集</h2>
+    <h2>${isMemo ? '📝 メモを編集' : '🔗 リンクを編集'}</h2>
     <div class="form-grid">
       <div class="form-2col">
-        <input type="text" id="le-icon" maxlength="2" value="${esc(item.icon || '🔗')}" style="text-align:center">
+        <input type="text" id="le-icon" maxlength="2" value="${esc(item.icon || (isMemo ? '📝' : '🔗'))}" style="text-align:center">
         <input type="text" id="le-title" value="${esc(item.title)}">
       </div>
-      <input type="url" id="le-url" value="${esc(item.url)}">
-      <input type="text" id="le-note" placeholder="メモ（任意）" value="${item.note ? esc(item.note) : ''}">
+      ${isMemo ? '' : `<input type="url" id="le-url" value="${esc(item.url || '')}">`}
+      <input type="text" id="le-category" placeholder="カテゴリ（例：交通、生活、情報）" value="${item.category ? esc(item.category) : ''}">
+      <textarea id="le-note" placeholder="メモ（任意）" rows="3" style="width:100%;padding:11px 12px;border:1.5px solid var(--line);border-radius:12px;background:var(--card);font-family:inherit;resize:vertical">${item.note ? esc(item.note) : ''}</textarea>
+      ${(item.attachments && item.attachments.length) ? `
+        <div>
+          <span class="f-label">添付ファイル（✕で削除）</span>
+          <div id="le-attach-list">
+            ${item.attachments.map((a, i) => `
+              <span class="attach-remove" data-idx="${i}">${(a.mime || '').startsWith('image/') ? '🖼️' : '📄'} ${esc(a.name)} <button type="button" data-remove-idx="${i}">✕</button></span>
+            `).join('')}
+          </div>
+        </div>` : ''}
+      <div>
+        <span class="f-label">添付を追加（任意・自動で圧縮されます）</span>
+        <input type="file" id="le-files" accept="image/*,application/pdf" multiple>
+      </div>
       <button class="btn-primary" id="le-ok">保存する</button>
       <button class="btn-danger-ghost" id="le-del">削除する</button>
       <button class="btn-close" id="le-close">閉じる</button>
     </div>`);
+
+  const removedPaths = new Set();
+  $$('#modal-box [data-remove-idx]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.removeIdx, 10);
+      removedPaths.add(item.attachments[idx].path);
+      btn.closest('.attach-remove').remove();
+    });
+  });
+
   $('#le-close').addEventListener('click', closeModal);
   $('#le-ok').addEventListener('click', async () => {
     const title = $('#le-title').value.trim();
-    const url = $('#le-url').value.trim();
-    if (!title || !url) return toast('タイトルとURLを入れてください');
-    const { error } = await sb.from('links').update({
-      icon: $('#le-icon').value.trim() || '🔗',
-      title, url: normalizeUrl(url), note: $('#le-note').value.trim() || null,
-    }).eq('id', item.id);
-    closeModal();
-    if (error) return dbErr(error, '保存に失敗しました');
-    await loadTable('links'); rerender();
+    const url = isMemo ? '' : $('#le-url').value.trim();
+    if (!title) return toast('タイトルを入れてください');
+    if (!isMemo && !url) return toast('URLを入れてください');
+    $('#le-ok').disabled = true;
+    try {
+      if (removedPaths.size) await sb.storage.from(ATTACH_BUCKET).remove([...removedPaths]);
+      const attachments = (item.attachments || []).filter((a) => !removedPaths.has(a.path));
+      for (const f of [...$('#le-files').files]) {
+        const a = await uploadAttachment(item.id, f);
+        if (a) attachments.push(a);
+      }
+      const { error } = await sb.from('links').update({
+        icon: $('#le-icon').value.trim() || (isMemo ? '📝' : '🔗'),
+        title, url: isMemo ? null : normalizeUrl(url),
+        category: $('#le-category').value.trim() || null,
+        note: $('#le-note').value.trim() || null,
+        attachments,
+      }).eq('id', item.id);
+      closeModal();
+      if (error) return dbErr(error, '保存に失敗しました');
+      await loadTable('links'); rerender();
+    } finally {
+      $('#le-ok').disabled = false;
+    }
   });
   $('#le-del').addEventListener('click', async () => {
     if (!confirm(`「${item.title}」を削除しますか？`)) return;
+    if (item.attachments && item.attachments.length) {
+      await sb.storage.from(ATTACH_BUCKET).remove(item.attachments.map((a) => a.path));
+    }
     const { error } = await sb.from('links').delete().eq('id', item.id);
     closeModal();
     if (error) return dbErr(error, '削除に失敗しました');
