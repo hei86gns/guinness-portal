@@ -343,7 +343,7 @@ input, select { font-family: inherit; font-size: 1rem; }
     <button class="tile" data-goto="links"><span class="icon">📎</span><span class="label">リンク&メモ</span></button>
     <button class="tile" id="logout-tile"><span class="icon">🔒</span><span class="label">ロックする</span></button>
   </div>
-  <div style="text-align:center;color:var(--text-sub);font-size:.7rem;margin-top:18px">v0.5.4</div>
+  <div style="text-align:center;color:var(--text-sub);font-size:.7rem;margin-top:18px">v0.6.0</div>
 </div>
 
 <!-- 買い物リスト -->
@@ -413,7 +413,11 @@ input, select { font-family: inherit; font-size: 1rem; }
 
 <!-- 車予約 -->
 <div id="view-car" class="view">
-  <div class="view-header"><h1>🚗 車予約</h1><button class="btn-ghost" id="car-add-btn">＋ 予約</button></div>
+  <div class="view-header"><h1 id="car-title">🚗 車予約</h1><button class="btn-ghost" id="car-add-btn">＋ 予約</button></div>
+  <div class="seg" id="car-vehicle-tabs">
+    <button type="button" data-vehicle="車" class="active">🚗 車</button>
+    <button type="button" data-vehicle="自転車">🚲 自転車</button>
+  </div>
   <div class="week-nav">
     <button id="car-prev">＜</button>
     <span class="wk-label" id="car-week-label"></span>
@@ -519,6 +523,7 @@ const state = {
   linkTab: 'link',
   linkCat: 'all',
   carWeekStart: mondayOf(new Date()),
+  carVehicle: '車',
   calCursor: new Date(),
   calSelected: todayStr(),
 };
@@ -1408,6 +1413,7 @@ function openSubEditModal(item) {
 const CAR_START_H = 6, CAR_END_H = 24, HOUR_PX = 40;
 
 function renderCar() {
+  $('#car-title').textContent = state.carVehicle === '自転車' ? '🚲 自転車予約' : '🚗 車予約';
   const ws = state.carWeekStart;
   const we = addDays(ws, 6);
   $('#car-week-label').textContent =
@@ -1430,7 +1436,7 @@ function renderCar() {
     const lines = [...Array(CAR_END_H - CAR_START_H)].map((_, i) =>
       `<div class="h-line" style="top:${i * HOUR_PX}px"></div>`).join('');
     const blocks = state.cars
-      .filter((r) => dstr(new Date(r.starts_at)) === ds)
+      .filter((r) => dstr(new Date(r.starts_at)) === ds && (r.vehicle || '車') === state.carVehicle)
       .map((r) => {
         const s = new Date(r.starts_at), e = new Date(r.ends_at);
         const sMin = Math.max(s.getHours() * 60 + s.getMinutes(), CAR_START_H * 60);
@@ -1447,6 +1453,13 @@ function renderCar() {
   $('#tl-body').innerHTML = `<div class="tl-hours" style="height:${totalH}px">${hourLabels}</div>${dayCols}`;
 }
 
+$('#car-vehicle-tabs').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-vehicle]');
+  if (!b) return;
+  state.carVehicle = b.dataset.vehicle;
+  $$('#car-vehicle-tabs button').forEach((x) => x.classList.toggle('active', x === b));
+  renderCar();
+});
 $('#car-prev').addEventListener('click', () => { state.carWeekStart = addDays(state.carWeekStart, -7); renderCar(); });
 $('#car-next').addEventListener('click', () => { state.carWeekStart = addDays(state.carWeekStart, 7); renderCar(); });
 $('#car-today').addEventListener('click', () => { state.carWeekStart = mondayOf(new Date()); renderCar(); });
@@ -1472,9 +1485,10 @@ function timeOptions(selMin) {
   return html;
 }
 
-function carOverlapExists(dateStr, sMin, eMin, excludeId = null) {
+function carOverlapExists(dateStr, sMin, eMin, vehicle, excludeId = null) {
   return state.cars.some((r) => {
     if (r.id === excludeId) return false;
+    if ((r.vehicle || '車') !== vehicle) return false;
     if (dstr(new Date(r.starts_at)) !== dateStr) return false;
     const rs = new Date(r.starts_at), re = new Date(r.ends_at);
     const rsMin = rs.getHours() * 60 + rs.getMinutes();
@@ -1484,34 +1498,44 @@ function carOverlapExists(dateStr, sMin, eMin, excludeId = null) {
   });
 }
 
-function openCarModal(dateStr, startHour) {
+/* editItem を渡すと編集モード（保存/削除）、渡さなければ新規予約モード */
+function openCarModal(dateStr, startHour, editItem = null) {
+  const vehicle = editItem ? (editItem.vehicle || '車') : state.carVehicle;
+  const s = editItem ? new Date(editItem.starts_at) : null;
+  const e = editItem ? new Date(editItem.ends_at) : null;
+  const startMin = s ? s.getHours() * 60 + s.getMinutes() : startHour * 60;
+  const endMin = e ? (e.getHours() === 0 ? 24 * 60 : e.getHours() * 60 + e.getMinutes()) : Math.min((startHour + 1) * 60, CAR_END_H * 60);
+  const label = vehicle === '自転車' ? '🚲 自転車' : '🚗 車';
   openModal(`
-    <h2>🚗 車を予約</h2>
+    <h2>${label}を${editItem ? '編集' : '予約'}</h2>
     <div class="form-grid">
-      <select id="cr-member">${CONFIG.MEMBERS.map((m) => `<option>${esc(m.name)}</option>`).join('')}</select>
-      <input type="date" id="cr-date" value="${dateStr}">
+      <select id="cr-member">${CONFIG.MEMBERS.map((m) => `<option ${editItem && editItem.member === m.name ? 'selected' : ''}>${esc(m.name)}</option>`).join('')}</select>
+      <input type="date" id="cr-date" value="${editItem ? dstr(s) : dateStr}">
       <div class="form-2col">
-        <select id="cr-start">${timeOptions(startHour * 60)}</select>
-        <select id="cr-end">${timeOptions(Math.min((startHour + 1) * 60, CAR_END_H * 60))}</select>
+        <select id="cr-start">${timeOptions(startMin)}</select>
+        <select id="cr-end">${timeOptions(endMin)}</select>
       </div>
-      <input type="text" id="cr-note" placeholder="メモ（例：買い出し）">
+      <input type="text" id="cr-note" placeholder="メモ（例：買い出し）" value="${editItem && editItem.note ? esc(editItem.note) : ''}">
       <div id="cr-warn" style="color:var(--danger);font-size:.82rem;min-height:1.2em"></div>
-      <button class="btn-primary" id="cr-ok">予約する</button>
+      <button class="btn-primary" id="cr-ok">${editItem ? '保存する' : '予約する'}</button>
+      ${editItem ? '<button class="btn-danger-ghost" id="cr-del">この予約を削除する</button>' : ''}
+      <button class="btn-close" id="cr-close">閉じる</button>
     </div>`);
 
   const check = () => {
-    const s = parseInt($('#cr-start').value, 10);
+    const s2 = parseInt($('#cr-start').value, 10);
     const en = parseInt($('#cr-end').value, 10);
     const d = $('#cr-date').value;
     let msg = '';
-    if (en <= s) msg = '終了時刻は開始より後にしてください';
-    else if (carOverlapExists(d, s, en)) msg = '⚠️ この時間帯はすでに予約があります';
+    if (en <= s2) msg = '終了時刻は開始より後にしてください';
+    else if (carOverlapExists(d, s2, en, vehicle, editItem ? editItem.id : null)) msg = '⚠️ この時間帯はすでに予約があります';
     $('#cr-warn').textContent = msg;
     $('#cr-ok').disabled = !!msg;  // UI側の一段目ブロック
   };
   ['cr-start', 'cr-end', 'cr-date'].forEach((id) => $('#' + id).addEventListener('change', check));
   check();
 
+  $('#cr-close').addEventListener('click', closeModal);
   $('#cr-ok').addEventListener('click', async () => {
     const d = $('#cr-date').value;
     const sMin = parseInt($('#cr-start').value, 10);
@@ -1519,41 +1543,35 @@ function openCarModal(dateStr, startHour) {
     const base = new Date(d + 'T00:00:00');
     const starts = new Date(base.getTime() + sMin * 60000);
     const ends = new Date(base.getTime() + eMin * 60000);
-    const { error } = await sb.from('car_reservations').insert({
-      member: $('#cr-member').value, starts_at: starts.toISOString(), ends_at: ends.toISOString(),
+    const payload = {
+      member: $('#cr-member').value, vehicle, starts_at: starts.toISOString(), ends_at: ends.toISOString(),
       note: $('#cr-note').value.trim() || null,
-    });
+    };
+    const q = editItem
+      ? sb.from('car_reservations').update(payload).eq('id', editItem.id)
+      : sb.from('car_reservations').insert(payload);
+    const { error } = await q;
     closeModal();
     if (error) {
       // DB側の二段目ブロック（排他制約違反 = 23P01）
       if (error.code === '23P01') return showErr('他の予約と時間が重なっています（他の端末から先に予約された可能性）');
-      return dbErr(error, '予約に失敗しました');
+      return dbErr(error, editItem ? '保存に失敗しました' : '予約に失敗しました');
     }
     await loadTable('car_reservations'); rerender();
-    toast('予約しました 🚗');
+    if (!editItem) toast(`予約しました ${label}`);
+  });
+  if (editItem) $('#cr-del').addEventListener('click', async () => {
+    if (!confirm('この予約を削除しますか？')) return;
+    const { error } = await sb.from('car_reservations').delete().eq('id', editItem.id);
+    closeModal();
+    if (error) return dbErr(error, '削除に失敗しました');
+    await loadTable('car_reservations'); rerender();
   });
 }
 
 function openCarDetail(id) {
   const r = state.cars.find((x) => x.id === id);
-  if (!r) return;
-  const s = new Date(r.starts_at), e = new Date(r.ends_at);
-  const fmt = (d) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-  openModal(`
-    <h2>🚗 予約の詳細</h2>
-    <div style="line-height:2">
-      <div><span class="dot" style="display:inline-block;background:${memberColor(r.member)}"></span> ${esc(r.member)}</div>
-      <div>${s.getMonth() + 1}/${s.getDate()}（${WDAYS[s.getDay()]}） ${fmt(s)} 〜 ${e.getHours() === 0 ? '24:00' : fmt(e)}</div>
-      ${r.note ? `<div style="color:var(--text-sub)">📝 ${esc(r.note)}</div>` : ''}
-    </div>
-    <button class="btn-danger-ghost" id="cr-del" style="margin-top:14px">この予約を削除する</button>`);
-  $('#cr-del').addEventListener('click', async () => {
-    if (!confirm('この予約を削除しますか？')) return;
-    const { error } = await sb.from('car_reservations').delete().eq('id', id);
-    closeModal();
-    if (error) return dbErr(error, '削除に失敗しました');
-    await loadTable('car_reservations'); rerender();
-  });
+  if (r) openCarModal(dstr(new Date(r.starts_at)), 0, r);
 }
 
 /* ============================================================

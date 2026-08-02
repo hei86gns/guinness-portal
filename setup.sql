@@ -64,12 +64,14 @@ create table if not exists subscriptions (
 create table if not exists car_reservations (
   id uuid primary key default gen_random_uuid(),
   member text not null,
+  vehicle text not null default '車' check (vehicle in ('車', '自転車')),
   starts_at timestamptz not null,
   ends_at timestamptz not null,
   note text,
   created_at timestamptz not null default now(),
   check (ends_at > starts_at),
-  constraint no_overlap exclude using gist (tstzrange(starts_at, ends_at) with &&)
+  -- 重複NGは同じ乗り物同士のみ（車と自転車は別物なので同時間帯でも両方予約可）
+  constraint no_overlap exclude using gist (vehicle with =, tstzrange(starts_at, ends_at) with &&)
 );
 
 -- ------------------------------------------------------------
@@ -151,5 +153,5 @@ create policy "family only delete" on storage.objects for delete to authenticate
 -- ============================================================
 -- 既存インストール（v0.3.0以前からのアップグレード）は代わりに
 -- migration_v0.4.0_rls.sql → migration_v0.4.1.sql → migration_v0.5.0.sql
--- の順で適用すること（このsetup.sqlは新規セットアップ専用）
+-- → migration_v0.6.0.sql の順で適用すること（このsetup.sqlは新規セットアップ専用）
 -- ============================================================
