@@ -267,11 +267,13 @@ input, select { font-family: inherit; font-size: 1rem; }
   font-size: .62rem; color: var(--text-sub); text-align: center; padding: 4px;
   flex-direction: column; justify-content: center;
 }
-.attach-remove {
-  display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px;
-  border: 1px solid var(--line); border-radius: 10px; font-size: .8rem; margin: 3px 6px 3px 0;
+.attach-thumb-wrap { position: relative; flex-shrink: 0; }
+.attach-del-x {
+  position: absolute; top: -6px; right: -6px; width: 20px; height: 20px;
+  background: var(--danger); color: #fff; border-radius: 50%; font-size: .65rem;
+  font-weight: 700; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 1px 3px rgba(0,0,0,.3);
 }
-.attach-remove button { color: var(--danger); font-weight: 700; }
 
 /* ---------- モーダル ---------- */
 #modal-overlay {
@@ -340,7 +342,7 @@ input, select { font-family: inherit; font-size: 1rem; }
     <button class="tile" data-goto="links"><span class="icon">📎</span><span class="label">リンク&メモ</span></button>
     <button class="tile" id="logout-tile"><span class="icon">🔒</span><span class="label">ロックする</span></button>
   </div>
-  <div style="text-align:center;color:var(--text-sub);font-size:.7rem;margin-top:18px">v0.5.2</div>
+  <div style="text-align:center;color:var(--text-sub);font-size:.7rem;margin-top:18px">v0.5.3</div>
 </div>
 
 <!-- 買い物リスト -->
@@ -991,7 +993,7 @@ function openPantryEditModal(item) {
  * リンク&メモ
  * ============================================================ */
 const ATTACH_BUCKET = 'attachments';
-const MAX_ATTACH_MB = 15;
+const MAX_ATTACH_MB = 40;  // Supabase無料枠は1ファイル最大50MBのため、余裕を見て設定
 
 function normalizeUrl(url) {
   const u = url.trim();
@@ -1114,7 +1116,7 @@ function openLinkAddModal() {
       </div>
       <textarea id="la-note" placeholder="メモ（任意）" rows="3" style="width:100%;padding:11px 12px;border:1.5px solid var(--line);border-radius:12px;background:var(--card);font-family:inherit;resize:vertical"></textarea>
       <div>
-        <span class="f-label">写真・PDFを添付（任意・自動で圧縮されます）</span>
+        <span class="f-label">写真・PDFを添付（任意・写真は自動で圧縮されます）</span>
         <input type="file" id="la-files" accept="image/*,application/pdf" multiple>
       </div>
       <button class="btn-primary" id="la-ok">追加する</button>
@@ -1185,10 +1187,13 @@ function openLinkEditModal(item) {
       <textarea id="le-note" placeholder="メモ（任意）" rows="3" style="width:100%;padding:11px 12px;border:1.5px solid var(--line);border-radius:12px;background:var(--card);font-family:inherit;resize:vertical">${item.note ? esc(item.note) : ''}</textarea>
       ${(item.attachments && item.attachments.length) ? `
         <div>
-          <span class="f-label">添付ファイル（✕で削除）</span>
-          <div id="le-attach-list">
+          <span class="f-label">添付ファイル（タップで表示・✕で削除）</span>
+          <div class="attach-row" id="le-attach-list">
             ${item.attachments.map((a, i) => `
-              <span class="attach-remove" data-idx="${i}">${(a.mime || '').startsWith('image/') ? '🖼️' : '📄'} ${esc(a.name)} <button type="button" data-remove-idx="${i}">✕</button></span>
+              <span class="attach-thumb-wrap">
+                ${attachThumbHtml(a)}
+                <button type="button" class="attach-del-x" data-remove-idx="${i}">✕</button>
+              </span>
             `).join('')}
           </div>
         </div>` : ''}
@@ -1201,12 +1206,13 @@ function openLinkEditModal(item) {
       <button class="btn-close" id="le-close">閉じる</button>
     </div>`);
 
+  fillAttachUrls($('#modal-box'));
   const removedPaths = new Set();
   $$('#modal-box [data-remove-idx]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const idx = parseInt(btn.dataset.removeIdx, 10);
       removedPaths.add(item.attachments[idx].path);
-      btn.closest('.attach-remove').remove();
+      btn.closest('.attach-thumb-wrap').remove();
     });
   });
   $('#le-cat-chips').addEventListener('click', (e) => {
