@@ -257,6 +257,7 @@ input, select { font-family: inherit; font-size: 1rem; }
 .l-cat { background: #eef2f7; color: var(--text-sub); }
 .attach-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .attach-thumb-link { display: inline-block; }
+.attach-thumb-btn { display: block; padding: 0; border: none; background: none; flex-shrink: 0; }
 .attach-thumb {
   width: 56px; height: 56px; border-radius: 10px; object-fit: cover;
   background: #eef2f7; flex-shrink: 0; border: 1px solid var(--line); display: block;
@@ -342,7 +343,7 @@ input, select { font-family: inherit; font-size: 1rem; }
     <button class="tile" data-goto="links"><span class="icon">📎</span><span class="label">リンク&メモ</span></button>
     <button class="tile" id="logout-tile"><span class="icon">🔒</span><span class="label">ロックする</span></button>
   </div>
-  <div style="text-align:center;color:var(--text-sub);font-size:.7rem;margin-top:18px">v0.5.3</div>
+  <div style="text-align:center;color:var(--text-sub);font-size:.7rem;margin-top:18px">v0.5.4</div>
 </div>
 
 <!-- 買い物リスト -->
@@ -1039,12 +1040,52 @@ async function uploadAttachment(itemId, file) {
   }
 }
 
-/* 写真はタップで元サイズを新しいタブで開けるようリンク化。PDFは既存通りファイルリンク */
+/* 編集モーダル用（タップで元ファイルを新しいタブで開く。削除✕ボタンと組み合わせて使用） */
 function attachThumbHtml(a) {
   if ((a.mime || '').startsWith('image/')) {
     return `<a class="attach-thumb-link" data-path="${esc(a.path)}" target="_blank" rel="noopener noreferrer"><img class="attach-thumb" data-path="${esc(a.path)}" alt="${esc(a.name)}"></a>`;
   }
   return `<a class="attach-file" data-path="${esc(a.path)}" target="_blank" rel="noopener noreferrer">📄<br>${esc((a.name || '').slice(0, 10))}</a>`;
+}
+
+/* 一覧表示用（タップで◀▶ナビ付きのギャラリーを開く。他の添付ファイルも続けて見られる） */
+function attachGalleryBtnHtml(a, itemId, idx) {
+  const inner = (a.mime || '').startsWith('image/')
+    ? `<img class="attach-thumb" data-path="${esc(a.path)}" alt="${esc(a.name)}">`
+    : `<div class="attach-file">📄<br>${esc((a.name || '').slice(0, 10))}</div>`;
+  return `<button type="button" class="attach-thumb-btn" data-item="${esc(itemId)}" data-idx="${idx}">${inner}</button>`;
+}
+
+/* 添付ギャラリー: 拡大表示のまま◀▶で他の添付ファイルも続けて閲覧 */
+function openAttachViewer(attachments, startIndex) {
+  let idx = startIndex;
+  function render() {
+    const a = attachments[idx];
+    const isImage = (a.mime || '').startsWith('image/');
+    const multi = attachments.length > 1;
+    openModal(`
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <button type="button" id="av-prev" ${multi ? '' : 'disabled'} style="font-size:1.6rem;padding:4px 16px;color:${multi ? 'var(--brand)' : '#d1d5db'};font-weight:700">‹</button>
+        <span style="font-size:.8rem;color:var(--text-sub)">${idx + 1} / ${attachments.length}</span>
+        <button type="button" id="av-next" ${multi ? '' : 'disabled'} style="font-size:1.6rem;padding:4px 16px;color:${multi ? 'var(--brand)' : '#d1d5db'};font-weight:700">›</button>
+      </div>
+      <div style="text-align:center">
+        ${isImage
+          ? `<img id="av-img" data-path="${esc(a.path)}" alt="${esc(a.name)}" style="max-width:100%;max-height:60vh;border-radius:12px;object-fit:contain">`
+          : `<div style="padding:36px 0"><div style="font-size:3rem">📄</div></div>`}
+      </div>
+      <div style="text-align:center;margin-top:8px;font-size:.85rem;color:var(--text-sub);word-break:break-all">${esc(a.name)}</div>
+      ${isImage ? '' : `<a id="av-open" data-path="${esc(a.path)}" target="_blank" rel="noopener noreferrer" class="btn-primary" style="display:block;text-align:center;margin-top:14px;text-decoration:none">開く</a>`}
+      <button type="button" class="btn-close" id="av-close" style="margin-top:12px">閉じる</button>
+    `);
+    fillAttachUrls($('#modal-box'));
+    $('#av-close').addEventListener('click', closeModal);
+    if (multi) {
+      $('#av-prev').addEventListener('click', () => { idx = (idx - 1 + attachments.length) % attachments.length; render(); });
+      $('#av-next').addEventListener('click', () => { idx = (idx + 1) % attachments.length; render(); });
+    }
+  }
+  render();
 }
 
 /* 添付の実体は非公開バケットのため、表示のたびに署名付きURLをまとめて取得 */
@@ -1078,7 +1119,7 @@ function renderLinks() {
         <span class="l-info" data-act="edit">
           <div class="l-title">${esc(l.title)} ${l.category ? `<span class="chip l-cat">${esc(l.category)}</span>` : ''}</div>
           ${l.note ? `<div class="l-note">${esc(l.note)}</div>` : ''}
-          ${(l.attachments && l.attachments.length) ? `<div class="attach-row">${l.attachments.map(attachThumbHtml).join('')}</div>` : ''}
+          ${(l.attachments && l.attachments.length) ? `<div class="attach-row">${l.attachments.map((a, i) => attachGalleryBtnHtml(a, l.id, i)).join('')}</div>` : ''}
         </span>
         ${l.url ? `<a class="l-open" href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">開く ›</a>` : ''}
       </div>`).join('')
@@ -1162,6 +1203,12 @@ function openLinkAddModal() {
 }
 
 $('#link-list').addEventListener('click', (e) => {
+  const thumbBtn = e.target.closest('.attach-thumb-btn');
+  if (thumbBtn) {
+    const item = state.links.find((l) => l.id === thumbBtn.dataset.item);
+    if (item) openAttachViewer(item.attachments, parseInt(thumbBtn.dataset.idx, 10));
+    return;
+  }
   const row = e.target.closest('.link-item');
   if (!row || !e.target.closest('[data-act="edit"]')) return;
   const item = state.links.find((l) => l.id === row.dataset.id);
