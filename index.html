@@ -343,7 +343,7 @@ input, select { font-family: inherit; font-size: 1rem; }
     <button class="tile" data-goto="links"><span class="icon">📎</span><span class="label">リンク&メモ</span></button>
     <button class="tile" id="logout-tile"><span class="icon">🔒</span><span class="label">ロックする</span></button>
   </div>
-  <div style="text-align:center;color:var(--text-sub);font-size:.7rem;margin-top:18px">v0.6.0</div>
+  <div style="text-align:center;color:var(--text-sub);font-size:.7rem;margin-top:18px">v0.6.1</div>
 </div>
 
 <!-- 買い物リスト -->
@@ -685,8 +685,12 @@ async function loadAll() {
   await Promise.all(['shopping_items', 'pantry_items', 'subscriptions', 'car_reservations', 'events', 'links'].map(loadTable));
 }
 
-/* Realtime: どこかの端末で変更 → 該当テーブルを再取得して再描画 */
+/* Realtime: どこかの端末で変更 → 該当テーブルを再取得して再描画
+ * iPhoneはバックグラウンドに回ると裏で接続が切れることがあるため、
+ * 再接続してもすぐ壊れた古いチャンネルが残らないよう毎回作り直す */
+let realtimeChannel = null;
 function subscribeRealtime() {
+  if (realtimeChannel) sb.removeChannel(realtimeChannel);
   const ch = sb.channel('portal-sync');
   ['shopping_items', 'pantry_items', 'subscriptions', 'car_reservations', 'events', 'links'].forEach((t) => {
     ch.on('postgres_changes', { event: '*', schema: 'public', table: t }, async () => {
@@ -694,7 +698,20 @@ function subscribeRealtime() {
     });
   });
   ch.subscribe();
+  realtimeChannel = ch;
 }
+
+/* アプリを再度アクティブにした瞬間、最新データへ同期し直す＋Realtimeを繋ぎ直す
+ * （バックグラウンドで通信が切れていても、ここで必ず追いつく） */
+let appStarted = false;
+document.addEventListener('visibilitychange', async () => {
+  if (!appStarted || document.visibilityState !== 'visible') return;
+  try {
+    await loadAll();
+    rerender();
+  } catch (e) { console.error(e); }
+  subscribeRealtime();
+});
 
 /* ============================================================
  * ホーム
@@ -1756,6 +1773,7 @@ async function startApp() {
     showErr('データの読み込みに失敗しました。setup.sql を実行済みか確認してください。');
   }
   subscribeRealtime();
+  appStarted = true;
   showView('home');
 }
 
