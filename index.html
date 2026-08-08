@@ -61,6 +61,19 @@ input, select { font-family: inherit; font-size: 1rem; }
   display: inline-block; padding: 2px 8px; border-radius: 999px;
   font-size: .72rem; font-weight: 600;
 }
+/* ---------- アプリ台帳 ---------- */
+.ledger-summary { display: flex; gap: 10px; margin-bottom: 12px; }
+.ledger-summary .stat { flex: 1; background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 12px; text-align: center; }
+.ledger-summary .stat .num { font-size: 1.3rem; font-weight: 800; color: var(--brand); }
+.ledger-summary .stat .lbl { font-size: .68rem; color: var(--text-sub); margin-top: 2px; }
+.ledger-app { margin-bottom: 10px; }
+.ledger-app .head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.ledger-app .name { font-weight: 700; font-size: 1rem; }
+.ledger-app .row { font-size: .82rem; color: var(--text-sub); line-height: 1.6; margin-top: 3px; }
+.ledger-app .row b { color: var(--text); font-weight: 600; }
+.chip-cloud { background: #e6edf7; color: #3563a8; }
+.chip-local { background: #f4ead9; color: #a3762a; }
+.ledger-note { font-size: .78rem; color: var(--text-sub); line-height: 1.6; margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line); }
 .btn-primary {
   background: var(--brand); color: #fff; border-radius: 10px;
   padding: 12px 18px; font-weight: 700; width: 100%;
@@ -341,6 +354,7 @@ input, select { font-family: inherit; font-size: 1rem; }
     <button class="tile" data-goto="car"><span class="icon">🚗</span><span class="label">車予約</span></button>
     <button class="tile" data-goto="calendar"><span class="icon">📅</span><span class="label">カレンダー</span></button>
     <button class="tile" data-goto="links"><span class="icon">📎</span><span class="label">リンク&メモ</span></button>
+    <button class="tile" data-goto="ledger"><span class="icon">📒</span><span class="label">アプリ台帳</span></button>
     <button class="tile" id="logout-tile"><span class="icon">🔒</span><span class="label">ロックする</span></button>
   </div>
   <div style="text-align:center;color:var(--text-sub);font-size:.7rem;margin-top:18px">v0.6.1</div>
@@ -458,6 +472,62 @@ input, select { font-family: inherit; font-size: 1rem; }
     <select id="link-filter-cat" style="padding:10px 12px;border:1.5px solid var(--line);border-radius:12px;background:var(--card)"></select>
   </div>
   <div class="card" id="link-list"></div>
+</div>
+
+<!-- アプリ台帳 -->
+<div id="view-ledger" class="view">
+  <div class="view-header"><h1>📒 アプリ台帳</h1></div>
+  <div class="ledger-summary">
+    <div class="stat"><div class="num">6</div><div class="lbl">アプリ数</div></div>
+    <div class="stat"><div class="num">5</div><div class="lbl">クラウド利用</div></div>
+    <div class="stat"><div class="num">1</div><div class="lbl">ローカルのみ</div></div>
+  </div>
+
+  <div class="card">
+    <div class="ledger-app">
+      <div class="head"><span class="name">📖 tangocho(単語帳)</span><span class="chip chip-cloud">クラウド</span></div>
+      <div class="row"><b>ログイン</b>: 個人アカウント(メール+パスワード、アプリ内で新規登録可)</div>
+      <div class="row"><b>最終更新</b>: 2026-07-04</div>
+    </div>
+    <div class="ledger-app">
+      <div class="head"><span class="name">📘 TOEIC_app(ゆりあTOEIC)</span><span class="chip chip-local">ローカルのみ</span></div>
+      <div class="row"><b>ログイン</b>: なし(ゆりあ専用アプリ、ユーザーの概念自体がない)</div>
+      <div class="row"><b>最終更新</b>: 2026-07-23</div>
+    </div>
+    <div class="ledger-app">
+      <div class="head"><span class="name">❤️ HealthDashboard</span><span class="chip chip-cloud">クラウド</span></div>
+      <div class="row"><b>ログイン</b>: 個人アカウント。ただしアプリ内に新規登録画面はなく、Supabase管理画面での手動作成が必要</div>
+      <div class="row"><b>取り込み</b>: iPhoneで手動書き出し→Macが自動でアップロード</div>
+      <div class="row"><b>最終更新</b>: 2026-07-25</div>
+    </div>
+    <div class="ledger-app">
+      <div class="head"><span class="name">💰 Kakeibo_App(家計簿)</span><span class="chip chip-cloud">クラウド(認証のみ)</span></div>
+      <div class="row"><b>ログイン</b>: 個人アカウント。アプリ内に新規登録画面はなく、Supabase管理画面での手動作成が必要</div>
+      <div class="row"><b>データ</b>: 家計簿の中身自体はSupabaseではなく端末内保存(複数端末では同期されない)</div>
+      <div class="row"><b>最終更新</b>: 2026-06-27</div>
+    </div>
+    <div class="ledger-app">
+      <div class="head"><span class="name">🏋️ Workout_App(筋トレ記録)</span><span class="chip chip-cloud">クラウド</span></div>
+      <div class="row"><b>ログイン</b>: 個人アカウント(任意。ログインせずローカルのみでも使える。アプリ内で新規登録可)</div>
+      <div class="row"><b>最終更新</b>: 2026-06-28</div>
+    </div>
+    <div class="ledger-app">
+      <div class="head"><span class="name">🏠 ギネス家ポータル(このアプリ)</span><span class="chip chip-cloud">クラウド</span></div>
+      <div class="row"><b>ログイン</b>: なし(個人アカウントの概念がなく、家族共通の合言葉を共有する方式)</div>
+      <div class="row"><b>最終更新</b>: 2026-07-25</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:10px">
+    <div class="section-label" style="margin-top:0">クラウドの裏側(Supabase)</div>
+    <div class="row" style="font-size:.82rem;color:var(--text-sub);line-height:1.7">
+      クラウドを使う5アプリは、実は<b style="color:var(--text)">2つの別々のデータベース(プロジェクト)</b>に分かれています。<br><br>
+      <b style="color:var(--text)">個人用(プロジェクトA)</b>: tangocho・Workout_Appが利用<br>
+      <b style="color:var(--text)">家族共有(プロジェクトB)</b>: このポータル・Kakeibo_App・HealthDashboardが利用
+    </div>
+  </div>
+
+  <div class="ledger-note">この画面は手作業で確認した内容のスナップショットです。各アプリの状態が変わっても自動では更新されません。</div>
 </div>
 
 <!-- 下部ナビ -->
