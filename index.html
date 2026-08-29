@@ -477,57 +477,20 @@ input, select { font-family: inherit; font-size: 1rem; }
 <!-- アプリ台帳 -->
 <div id="view-ledger" class="view">
   <div class="view-header"><h1>📒 アプリ台帳</h1></div>
-  <div class="ledger-summary">
-    <div class="stat"><div class="num">6</div><div class="lbl">アプリ数</div></div>
-    <div class="stat"><div class="num">5</div><div class="lbl">クラウド利用</div></div>
-    <div class="stat"><div class="num">1</div><div class="lbl">ローカルのみ</div></div>
-  </div>
+  <div class="ledger-summary" id="ledger-summary"></div>
 
-  <div class="card">
-    <div class="ledger-app">
-      <div class="head"><span class="name">📖 tangocho(単語帳)</span><span class="chip chip-cloud">クラウド</span></div>
-      <div class="row"><b>ログイン</b>: 個人アカウント(メール+パスワード、アプリ内で新規登録可)</div>
-      <div class="row"><b>最終更新</b>: 2026-07-04</div>
-    </div>
-    <div class="ledger-app">
-      <div class="head"><span class="name">📘 TOEIC_app(ゆりあTOEIC)</span><span class="chip chip-local">ローカルのみ</span></div>
-      <div class="row"><b>ログイン</b>: なし(ゆりあ専用アプリ、ユーザーの概念自体がない)</div>
-      <div class="row"><b>最終更新</b>: 2026-07-23</div>
-    </div>
-    <div class="ledger-app">
-      <div class="head"><span class="name">❤️ HealthDashboard</span><span class="chip chip-cloud">クラウド</span></div>
-      <div class="row"><b>ログイン</b>: 個人アカウント。ただしアプリ内に新規登録画面はなく、Supabase管理画面での手動作成が必要</div>
-      <div class="row"><b>取り込み</b>: iPhoneで手動書き出し→Macが自動でアップロード</div>
-      <div class="row"><b>最終更新</b>: 2026-07-25</div>
-    </div>
-    <div class="ledger-app">
-      <div class="head"><span class="name">💰 Kakeibo_App(家計簿)</span><span class="chip chip-cloud">クラウド</span></div>
-      <div class="row"><b>ログイン</b>: 個人アカウント(招待制)。新規登録画面はなく、Supabase管理画面の「Invite user」で招待が必要</div>
-      <div class="row"><b>データ</b>: 2026-08-28よりSupabase本体に保存され、複数端末で同期されるように(旧データは手動移行が必要)</div>
-      <div class="row"><b>最終更新</b>: 2026-08-28</div>
-    </div>
-    <div class="ledger-app">
-      <div class="head"><span class="name">🏋️ Workout_App(筋トレ記録)</span><span class="chip chip-cloud">クラウド</span></div>
-      <div class="row"><b>ログイン</b>: 個人アカウント(任意。ログインせずローカルのみでも使える。アプリ内で新規登録可)</div>
-      <div class="row"><b>最終更新</b>: 2026-06-28</div>
-    </div>
-    <div class="ledger-app">
-      <div class="head"><span class="name">🏠 ギネス家ポータル(このアプリ)</span><span class="chip chip-cloud">クラウド</span></div>
-      <div class="row"><b>ログイン</b>: なし(個人アカウントの概念がなく、家族共通の合言葉を共有する方式)</div>
-      <div class="row"><b>最終更新</b>: 2026-07-25</div>
-    </div>
-  </div>
+  <div class="card" id="ledger-list"></div>
 
   <div class="card" style="margin-top:10px">
     <div class="section-label" style="margin-top:0">クラウドの裏側(Supabase)</div>
     <div class="row" style="font-size:.82rem;color:var(--text-sub);line-height:1.7">
-      クラウドを使う5アプリは、実は<b style="color:var(--text)">2つの別々のデータベース(プロジェクト)</b>に分かれています。<br><br>
-      <b style="color:var(--text)">個人用(プロジェクトA)</b>: tangocho・Workout_Appが利用<br>
+      クラウドを使うアプリは、実は<b style="color:var(--text)">2つの別々のデータベース(プロジェクト)</b>に分かれています。<br><br>
+      <b style="color:var(--text)">個人用(プロジェクトA)</b>: tangocho・Workout_App・ToDo_Appが利用<br>
       <b style="color:var(--text)">家族共有(プロジェクトB)</b>: このポータル・Kakeibo_App・HealthDashboardが利用
     </div>
   </div>
 
-  <div class="ledger-note">この画面は手作業で確認した内容のスナップショットです。各アプリの状態が変わっても自動では更新されません。</div>
+  <div class="ledger-note" id="ledger-updated"></div>
 </div>
 
 <!-- 下部ナビ -->
@@ -585,7 +548,7 @@ const ITEM_CATS = ['野菜', '調味料', '主食', '飲料', '肉魚類', '果�
 const MEALS = ['朝', '昼', '夜'];
 
 const state = {
-  shopping: [], pantry: [], subs: [], cars: [], events: [], links: [],
+  shopping: [], pantry: [], subs: [], cars: [], events: [], links: [], ledger: [],
   currentView: 'home',
   pantryCat: 'all',
   pantryItemCat: 'all',
@@ -729,7 +692,7 @@ document.addEventListener('click', (e) => {
 
 function render(name) {
   ({ home: renderHome, shopping: renderShopping, pantry: renderPantry,
-     subs: renderSubs, car: renderCar, calendar: renderCalendar, links: renderLinks }[name] || (() => {}))();
+     subs: renderSubs, car: renderCar, calendar: renderCalendar, links: renderLinks, ledger: renderLedger }[name] || (() => {}))();
 }
 function rerender() { render(state.currentView); renderBadges(); }
 
@@ -744,15 +707,16 @@ async function loadTable(table) {
     car_reservations: ['starts_at', { ascending: true }],
     events: ['start_time', { ascending: true, nullsFirst: true }],
     links: ['created_at', { ascending: false }],
+    app_ledger: ['sort_order', { ascending: true }],
   };
   const [col, opt] = orders[table];
   const { data, error } = await sb.from(table).select('*').order(col, opt);
   if (error) throw error;
-  const key = { shopping_items: 'shopping', pantry_items: 'pantry', subscriptions: 'subs', car_reservations: 'cars', events: 'events', links: 'links' }[table];
+  const key = { shopping_items: 'shopping', pantry_items: 'pantry', subscriptions: 'subs', car_reservations: 'cars', events: 'events', links: 'links', app_ledger: 'ledger' }[table];
   state[key] = data || [];
 }
 async function loadAll() {
-  await Promise.all(['shopping_items', 'pantry_items', 'subscriptions', 'car_reservations', 'events', 'links'].map(loadTable));
+  await Promise.all(['shopping_items', 'pantry_items', 'subscriptions', 'car_reservations', 'events', 'links', 'app_ledger'].map(loadTable));
 }
 
 /* Realtime: どこかの端末で変更 → 該当テーブルを再取得して再描画
@@ -762,7 +726,7 @@ let realtimeChannel = null;
 function subscribeRealtime() {
   if (realtimeChannel) sb.removeChannel(realtimeChannel);
   const ch = sb.channel('portal-sync');
-  ['shopping_items', 'pantry_items', 'subscriptions', 'car_reservations', 'events', 'links'].forEach((t) => {
+  ['shopping_items', 'pantry_items', 'subscriptions', 'car_reservations', 'events', 'links', 'app_ledger'].forEach((t) => {
     ch.on('postgres_changes', { event: '*', schema: 'public', table: t }, async () => {
       try { await loadTable(t); rerender(); } catch (e) { console.error(e); }
     });
@@ -1229,6 +1193,34 @@ $('#link-tabs').addEventListener('click', (e) => {
 });
 $('#link-filter-cat').addEventListener('change', (e) => { state.linkCat = e.target.value; renderLinks(); });
 $('#link-add-btn').addEventListener('click', () => openLinkAddModal());
+
+function renderLedger() {
+  const items = state.ledger;
+  const cloudCount = items.filter((a) => a.backend === 'cloud').length;
+  const localCount = items.filter((a) => a.backend === 'local').length;
+  $('#ledger-summary').innerHTML = `
+    <div class="stat"><div class="num">${items.length}</div><div class="lbl">アプリ数</div></div>
+    <div class="stat"><div class="num">${cloudCount}</div><div class="lbl">クラウド利用</div></div>
+    <div class="stat"><div class="num">${localCount}</div><div class="lbl">ローカルのみ</div></div>
+  `;
+  $('#ledger-list').innerHTML = items.length
+    ? items.map((a) => `
+      <div class="ledger-app">
+        <div class="head">
+          <span class="name">${esc(a.icon || '📦')} ${esc(a.name)}${a.is_new ? ' <span class="chip" style="background:#dcfce7;color:#15803d">NEW</span>' : ''}</span>
+          <span class="chip ${a.backend === 'local' ? 'chip-local' : 'chip-cloud'}">${a.backend === 'local' ? 'ローカルのみ' : 'クラウド'}</span>
+        </div>
+        ${(a.rows || []).map((r) => `<div class="row"><b>${esc(r.label)}</b>: ${esc(r.value)}</div>`).join('')}
+        ${a.url ? `<div class="row"><a href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">${esc(a.url)} ›</a></div>` : ''}
+        <div class="row" style="opacity:.7">最終更新: ${esc(a.updated_at || '-')}</div>
+      </div>`).join('')
+    : '<div class="empty">登録されたアプリはありません</div>';
+  const latest = items.reduce((max, a) => (a.updated_at && a.updated_at > max ? a.updated_at : max), '');
+  $('#ledger-updated').textContent = latest
+    ? `この一覧はSupabaseから読み込んでいます。台帳の内容が変わると、次にこの画面を開いたとき／リアルタイムで自動的に反映されます。`
+    : 'この一覧はSupabaseから読み込んでいます。';
+}
+
 
 function openLinkAddModal() {
   const type = state.linkTab;
