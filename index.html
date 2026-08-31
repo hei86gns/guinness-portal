@@ -357,7 +357,7 @@ input, select { font-family: inherit; font-size: 1rem; }
     <button class="tile" data-goto="ledger"><span class="icon">📒</span><span class="label">アプリ台帳</span></button>
     <button class="tile" id="logout-tile"><span class="icon">🔒</span><span class="label">ロックする</span></button>
   </div>
-  <div style="text-align:center;color:var(--text-sub);font-size:.7rem;margin-top:18px">v0.6.2</div>
+  <div style="text-align:center;color:var(--text-sub);font-size:.7rem;margin-top:18px">v0.6.3</div>
 </div>
 
 <!-- 買い物リスト -->
@@ -769,11 +769,9 @@ function renderHome() {
 function renderBadges() {
   const shopCount = state.shopping.filter((i) => !i.checked).length;
   const pantryCount = state.pantry.filter((i) => daysLeft(i.expires_on) <= 3).length;
-  const m = new Date().getMonth() + 1;
-  const subsCount = state.subs.filter((s) => s.cycle === 'yearly' && s.renewal_month === m).length;
   setBadge('#bdg-shop', shopCount); setBadge('#nav-bdg-shop', shopCount);
   setBadge('#bdg-pantry', pantryCount); setBadge('#nav-bdg-pantry', pantryCount);
-  setBadge('#bdg-subs', subsCount);
+  setBadge('#bdg-subs', state.subs.length);  // 登録している総数（今月更新の目印は一覧内の「今月更新」タグの方に残してある）
 }
 function setBadge(sel, n) {
   const el = $(sel);
