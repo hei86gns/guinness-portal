@@ -357,7 +357,7 @@ input, select { font-family: inherit; font-size: 1rem; }
     <button class="tile" data-goto="ledger"><span class="icon">📒</span><span class="label">アプリ台帳</span></button>
     <button class="tile" id="logout-tile"><span class="icon">🔒</span><span class="label">ロックする</span></button>
   </div>
-  <div style="text-align:center;color:var(--text-sub);font-size:.7rem;margin-top:18px">v0.6.1</div>
+  <div style="text-align:center;color:var(--text-sub);font-size:.7rem;margin-top:18px">v0.6.2</div>
 </div>
 
 <!-- 買い物リスト -->
@@ -408,6 +408,7 @@ input, select { font-family: inherit; font-size: 1rem; }
   <div class="card subs-total">
     <div class="label">月額合計（年払いは12分割で換算）</div>
     <div class="amount" id="subs-total">¥0<small>/月</small></div>
+    <div class="label" id="subs-count" style="margin-top:6px">登録0件</div>
   </div>
   <div class="card">
     <div class="form-grid">
@@ -1401,6 +1402,7 @@ function monthlyOf(s) { return s.cycle === 'yearly' ? s.amount / 12 : s.amount; 
 function renderSubs() {
   const total = state.subs.reduce((sum, s) => sum + monthlyOf(s), 0);
   $('#subs-total').innerHTML = `${yen(total)}<small>/月</small>`;
+  $('#subs-count').textContent = `登録${state.subs.length}件`;
   const m = new Date().getMonth() + 1;
   $('#subs-list').innerHTML = state.subs.length
     ? state.subs.map((s) => `
