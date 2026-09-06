@@ -86,6 +86,11 @@ input, select { font-family: inherit; font-size: 1rem; }
 .proj-a { background: #dcf2ec; color: #0d7d6f; }
 .proj-b { background: #fbe9d5; color: #b0630f; }
 .proj-none { background: #eceef1; color: #6b7280; }
+/* 無料枠の状態：緑=余裕 / 黄=いずれ注意 / 赤=すでに上限 */
+.q-ok   { background: #dcf2ec; color: #0d7d6f; }
+.q-warn { background: #fdf1d6; color: #a3762a; }
+.q-full { background: #fbe0e0; color: #b42318; }
+.q-badge { display: inline-block; padding: 2px 7px; border-radius: 999px; font-size: .68rem; font-weight: 700; white-space: nowrap; }
 .ledger-hint { font-size: .68rem; color: var(--text-sub); text-align: right; margin-top: 6px; }
 .ledger-note { font-size: .78rem; color: var(--text-sub); line-height: 1.6; margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line); }
 .btn-primary {
@@ -513,6 +518,32 @@ input, select { font-family: inherit; font-size: 1rem; }
       このポータル・Kakeibo_App・HealthDashboard<br>
       <span style="font-size:.78rem">※Supabaseの画面上では<b style="color:var(--text)">「Kakeibo」という名前</b>で表示されるので注意</span><br><br>
       <b style="color:var(--text)">Supabase未使用</b>: TOEIC_app・ContentManager
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:10px">
+    <div class="section-label" style="margin-top:0">無料枠は足りている?(2026-09-07 調べ)</div>
+    <div class="ledger-table-wrap">
+      <table class="ledger-table">
+        <thead><tr><th>項目</th><th>無料の上限</th><th>いまの状態</th><th></th></tr></thead>
+        <tbody>
+          <tr><td class="t-name">GitHub 容量</td><td>1GB/サイト</td><td>7個で合計11.4MB(約1%)</td><td><span class="q-badge q-ok">余裕</span></td></tr>
+          <tr><td class="t-name">GitHub 自動デプロイ</td><td>公開リポジトリは無制限</td><td>全て公開なので対象外</td><td><span class="q-badge q-ok">余裕</span></td></tr>
+          <tr><td class="t-name">Supabase プロジェクト数</td><td><b>2つまで</b></td><td>A・Bで<b>すでに上限</b></td><td><span class="q-badge q-full">上限</span></td></tr>
+          <tr><td class="t-name">Supabase データベース</td><td>500MB×2</td><td>文字だけなので数十MB程度</td><td><span class="q-badge q-ok">余裕</span></td></tr>
+          <tr><td class="t-name">Supabase 写真</td><td>1GB</td><td>お店リストのみ。1枚約400KB=約2,000枚まで</td><td><span class="q-badge q-warn">要観察</span></td></tr>
+          <tr><td class="t-name">Supabase 通信量</td><td>5GB/月</td><td>家族数人では届かない</td><td><span class="q-badge q-ok">余裕</span></td></tr>
+          <tr><td class="t-name">7日間放置で一時停止</td><td>—</td><td>Bは毎日使うので安全。Aは長期放置に注意</td><td><span class="q-badge q-warn">要観察</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="row" style="font-size:.82rem;color:var(--text-sub);line-height:1.7;margin-top:10px">
+      <b style="color:var(--text)">次にクラウド付きアプリを作るときの注意</b><br>
+      Supabaseの無料プランは<b style="color:var(--text)">プロジェクトを2つまでしか持てず、すでに使い切っています</b>。
+      そのため新しいアプリも必ずAかBのどちらかに相乗りさせることになります(=テーブル名で区別する)。
+      3つ目を新設したい場合は有料プラン(月$25程度)が必要です。<br><br>
+      止まったとき・実際の残量を見たいときは Supabase の
+      <b style="color:var(--text)">Organization → Usage</b> が正しい数字です。
     </div>
   </div>
 
