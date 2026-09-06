@@ -503,9 +503,16 @@ input, select { font-family: inherit; font-size: 1rem; }
   <div class="card" style="margin-top:10px">
     <div class="section-label" style="margin-top:0">クラウドの裏側(Supabase)</div>
     <div class="row" style="font-size:.82rem;color:var(--text-sub);line-height:1.7">
-      クラウドを使うアプリは、実は<b style="color:var(--text)">2つの別々のデータベース(プロジェクト)</b>に分かれています。<br><br>
-      <b style="color:var(--text)">個人用(プロジェクトA)</b>: tangocho・Workout_App・ToDo_Appが利用<br>
-      <b style="color:var(--text)">家族共有(プロジェクトB)</b>: このポータル・Kakeibo_App・HealthDashboardが利用
+      クラウドを使うアプリは、実は<b style="color:var(--text)">2つの別々のデータベース(プロジェクト)</b>に分かれています。<br>
+      別プロジェクトのSQLを実行しても目的のテーブルは見つかりません。作業前に必ずどちらか確認してください。<br><br>
+      <b class="proj-a" style="padding:1px 6px;border-radius:4px">A(個人用)</b>
+      <span class="t-mono" style="font-size:.76rem">disfgytjjflnlowywess</span><br>
+      tangocho・Workout_App・ToDo_App・<b style="color:var(--text)">Restaurants_App(お店リスト)</b><br><br>
+      <b class="proj-b" style="padding:1px 6px;border-radius:4px">B(家族共有)</b>
+      <span class="t-mono" style="font-size:.76rem">zkqvqztadbzqwdwqhyjw</span><br>
+      このポータル・Kakeibo_App・HealthDashboard<br>
+      <span style="font-size:.78rem">※Supabaseの画面上では<b style="color:var(--text)">「Kakeibo」という名前</b>で表示されるので注意</span><br><br>
+      <b style="color:var(--text)">Supabase未使用</b>: TOEIC_app・ContentManager
     </div>
   </div>
 
