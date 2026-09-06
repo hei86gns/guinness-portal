@@ -73,6 +73,20 @@ input, select { font-family: inherit; font-size: 1rem; }
 .ledger-app .row b { color: var(--text); font-weight: 600; }
 .chip-cloud { background: #e6edf7; color: #3563a8; }
 .chip-local { background: #f4ead9; color: #a3762a; }
+/* 早見表 */
+.ledger-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 -4px; }
+.ledger-table { border-collapse: collapse; font-size: .74rem; white-space: nowrap; }
+.ledger-table th, .ledger-table td { padding: 7px 10px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
+.ledger-table th { font-size: .68rem; color: var(--text-sub); font-weight: 700; border-bottom: 1.5px solid var(--line); position: sticky; top: 0; background: var(--card); }
+.ledger-table tr:last-child td { border-bottom: none; }
+.ledger-table .t-name { font-weight: 700; white-space: nowrap; }
+.t-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .7rem; color: var(--text-sub); }
+/* プロジェクトの色分け：Aは緑・Bは橙・未使用は灰。貼り間違い防止のため常に同じ色 */
+.proj { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: .7rem; font-weight: 700; white-space: nowrap; }
+.proj-a { background: #dcf2ec; color: #0d7d6f; }
+.proj-b { background: #fbe9d5; color: #b0630f; }
+.proj-none { background: #eceef1; color: #6b7280; }
+.ledger-hint { font-size: .68rem; color: var(--text-sub); text-align: right; margin-top: 6px; }
 .ledger-note { font-size: .78rem; color: var(--text-sub); line-height: 1.6; margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line); }
 .btn-primary {
   background: var(--brand); color: #fff; border-radius: 10px;
@@ -480,6 +494,10 @@ input, select { font-family: inherit; font-size: 1rem; }
   <div class="view-header"><h1>📒 アプリ台帳</h1></div>
   <div class="ledger-summary" id="ledger-summary"></div>
 
+  <div class="section-label">早見表（SQLの貼り間違い防止用）</div>
+  <div class="card" id="ledger-table"></div>
+
+  <div class="section-label">アプリごとの詳細</div>
   <div class="card" id="ledger-list"></div>
 
   <div class="card" style="margin-top:10px">
@@ -1193,6 +1211,13 @@ $('#link-tabs').addEventListener('click', (e) => {
 $('#link-filter-cat').addEventListener('change', (e) => { state.linkCat = e.target.value; renderLinks(); });
 $('#link-add-btn').addEventListener('click', () => openLinkAddModal());
 
+/* プロジェクトごとの色分け。SQLの貼り間違い防止のため、
+   「どのSupabaseプロジェクトか」を常に同じ色で示す */
+function projClass(label) {
+  if (!label || label.startsWith('（')) return 'proj-none';
+  return label.startsWith('A') ? 'proj-a' : 'proj-b';
+}
+
 function renderLedger() {
   const items = state.ledger;
   const cloudCount = items.filter((a) => a.backend === 'cloud').length;
@@ -1202,6 +1227,30 @@ function renderLedger() {
     <div class="stat"><div class="num">${cloudCount}</div><div class="lbl">クラウド利用</div></div>
     <div class="stat"><div class="num">${localCount}</div><div class="lbl">ローカルのみ</div></div>
   `;
+
+  /* ---- 早見表：どのアプリがどのプロジェクト／リポジトリか ---- */
+  $('#ledger-table').innerHTML = items.length ? `
+    <div class="ledger-table-wrap">
+      <table class="ledger-table">
+        <thead>
+          <tr><th>アプリ</th><th>Supabase</th><th>テーブル</th><th>GitHub</th><th>公開先</th></tr>
+        </thead>
+        <tbody>
+          ${items.map((a) => `
+            <tr>
+              <td class="t-name">${esc(a.icon || '📦')} ${esc((a.name || '').replace(/（.*$/, ''))}</td>
+              <td><span class="proj ${projClass(a.project_label)}">${esc(a.project_label || '—')}</span></td>
+              <td class="t-mono">${esc(a.db_tables || '—')}</td>
+              <td class="t-mono">${esc(a.repo || '—')}</td>
+              <td class="t-mono">${esc(a.hosting || '—')}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div class="ledger-hint">← 横にスクロールできます</div>
+  ` : '';
+
+  /* ---- 詳細カード ---- */
   $('#ledger-list').innerHTML = items.length
     ? items.map((a) => `
       <div class="ledger-app">
@@ -1209,15 +1258,20 @@ function renderLedger() {
           <span class="name">${esc(a.icon || '📦')} ${esc(a.name)}${a.is_new ? ' <span class="chip" style="background:#dcfce7;color:#15803d">NEW</span>' : ''}</span>
           <span class="chip ${a.backend === 'local' ? 'chip-local' : 'chip-cloud'}">${a.backend === 'local' ? 'ローカルのみ' : 'クラウド'}</span>
         </div>
+        ${a.project_label ? `<div class="row"><b>Supabase</b>: <span class="proj ${projClass(a.project_label)}">${esc(a.project_label)}</span>${a.project_ref ? ` <span class="t-mono" style="font-size:.72rem">${esc(a.project_ref)}</span>` : ''}</div>` : ''}
+        ${a.db_tables ? `<div class="row"><b>テーブル</b>: <span class="t-mono">${esc(a.db_tables)}</span></div>` : ''}
+        ${a.repo ? `<div class="row"><b>GitHub</b>: <span class="t-mono">${esc(a.repo)}</span></div>` : ''}
+        ${a.stack ? `<div class="row"><b>技術</b>: ${esc(a.stack)}</div>` : ''}
         ${(a.rows || []).map((r) => `<div class="row"><b>${esc(r.label)}</b>: ${esc(r.value)}</div>`).join('')}
-        ${a.url ? `<div class="row"><a href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">${esc(a.url)} ›</a></div>` : ''}
+        ${a.hosting_url && a.hosting_url.startsWith('http')
+          ? `<div class="row"><b>公開先</b>: <a href="${esc(a.hosting_url)}" target="_blank" rel="noopener noreferrer">${esc(a.hosting_url)} ›</a></div>`
+          : (a.hosting_url ? `<div class="row"><b>公開先</b>: ${esc(a.hosting_url)}</div>` : '')}
         <div class="row" style="opacity:.7">最終更新: ${esc(a.updated_at || '-')}</div>
       </div>`).join('')
     : '<div class="empty">登録されたアプリはありません</div>';
-  const latest = items.reduce((max, a) => (a.updated_at && a.updated_at > max ? a.updated_at : max), '');
-  $('#ledger-updated').textContent = latest
-    ? `この一覧はSupabaseから読み込んでいます。台帳の内容が変わると、次にこの画面を開いたとき／リアルタイムで自動的に反映されます。`
-    : 'この一覧はSupabaseから読み込んでいます。';
+
+  $('#ledger-updated').textContent =
+    'この一覧はSupabaseのapp_ledgerテーブルから読み込んでいます。内容を更新すると、家族の全端末にリアルタイムで反映されます。';
 }
 
 
