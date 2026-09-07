@@ -522,6 +522,36 @@ input, select { font-family: inherit; font-size: 1rem; }
   </div>
 
   <div class="card" style="margin-top:10px">
+    <div class="section-label" style="margin-top:0">アカウントの作り方(2026-09-07 実地確認)</div>
+    <div class="row" style="font-size:.82rem;color:var(--text-sub);line-height:1.7">
+      <b class="proj-a" style="padding:1px 6px;border-radius:4px">A(個人用)</b>
+      は<b style="color:var(--text)">新規登録が禁止</b>されています。
+      利用者が自分でアカウントを作ることはできません。<br><br>
+
+      <b style="color:var(--text)">追加する手順</b><br>
+      Supabase → プロジェクトA → Authentication → Users → Add user →
+      <b style="color:var(--text)">Create new user</b> でメールとパスワードを入力し、
+      <b style="color:var(--text)">☑ Auto Confirm User</b> にチェックして作成。
+      できたパスワードを本人に伝える。<br>
+      <span style="font-size:.78rem">※Send invitation は<b style="color:var(--text)">メールが届かない</b>ので使わない</span><br><br>
+
+      <b style="color:var(--text)">1組のID/パスワードで4アプリ共通</b><br>
+      単語帳・筋トレ・ToDo・お店リストは同じプロジェクトなので、
+      1つのアカウントでどれにもログインできます。
+      ただしデータは利用者ごとに完全に分かれており、他人の内容は見えません。<br><br>
+
+      <b style="color:var(--text)">メールが送れないことによる制限</b><br>
+      無料枠のため確認メール・リセットメールが届きません。
+      <b style="color:var(--text)">パスワードを忘れたら管理者がSupabaseで再設定</b>する運用です
+      (アプリ内に変更画面はありません)。<br><br>
+
+      <b style="color:var(--text)">ログイン不要で使えるアプリ</b><br>
+      単語帳・筋トレはログインしなくても全機能を使えます(データは端末内)。
+      ログインは複数端末で同期したい人だけの追加機能です。
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:10px">
     <div class="section-label" style="margin-top:0">無料枠は足りている?(2026-09-07 調べ)</div>
     <div class="ledger-table-wrap">
       <table class="ledger-table">
