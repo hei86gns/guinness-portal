@@ -74,7 +74,7 @@ input, select { font-family: inherit; font-size: 1rem; }
 .chip-cloud { background: #e6edf7; color: #3563a8; }
 .chip-local { background: #f4ead9; color: #a3762a; }
 /* 早見表 */
-.ledger-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 -4px; }
+.ledger-table-wrap { overflow-x: auto; margin: 0 -4px; }
 .ledger-table { border-collapse: collapse; font-size: .74rem; white-space: nowrap; }
 .ledger-table th, .ledger-table td { padding: 7px 10px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
 .ledger-table th { font-size: .68rem; color: var(--text-sub); font-weight: 700; border-bottom: 1.5px solid var(--line); position: sticky; top: 0; background: var(--card); }
@@ -151,6 +151,13 @@ input, select { font-family: inherit; font-size: 1rem; }
   height: calc(var(--nav-h) + env(safe-area-inset-bottom));
   padding-bottom: env(safe-area-inset-bottom);
   background: var(--card); border-top: 1px solid var(--line);
+  /* iPhoneのSafariで、横スクロール領域(台帳の表など)がある画面をスクロールすると
+     position:fixed の要素が描画上ズレて追従して見えるバグへの対策。
+     独立した合成レイヤーに切り出すことでズレを防ぐ */
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 #bottom-nav.show { display: grid; }
 .nav-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: var(--text-sub); position: relative; }
@@ -376,7 +383,7 @@ input, select { font-family: inherit; font-size: 1rem; }
     <button class="tile" data-goto="ledger"><span class="icon">📒</span><span class="label">アプリ台帳</span></button>
     <button class="tile" id="logout-tile"><span class="icon">🔒</span><span class="label">ロックする</span></button>
   </div>
-  <div style="text-align:center;color:var(--text-sub);font-size:.7rem;margin-top:18px">v0.6.3</div>
+  <div style="text-align:center;color:var(--text-sub);font-size:.7rem;margin-top:18px">v0.9.1</div>
 </div>
 
 <!-- 買い物リスト -->
