@@ -31,6 +31,13 @@ html { font-size: 16px; }
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
   background: var(--bg); color: var(--text);
+}
+/* ページ全体はスクロールさせず、#scroller の中だけをスクロールさせる(アプリ型レイアウト)。
+   iOS 26以降のSafari/ホーム画面アプリでは、ページ全体をスクロールすると画面の高さが変わり、
+   下部メニュー(position:fixed)が上にズレる。画面の枠を動かさないことでこれを防ぐ */
+html, body { height: 100%; overflow: hidden; }
+#scroller {
+  position: fixed; inset: 0; overflow-y: auto; overscroll-behavior-y: contain;
   /* iPhoneのステータスバー（時計・電池表示）やノッチと重ならないための安全余白 */
   padding-top: max(env(safe-area-inset-top), 0px);
   padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom));
@@ -349,6 +356,7 @@ input, select { font-family: inherit; font-size: 1rem; }
 </style>
 </head>
 <body>
+<main id="scroller">
 
 <div id="err-banner"></div>
 
@@ -383,7 +391,7 @@ input, select { font-family: inherit; font-size: 1rem; }
     <button class="tile" data-goto="ledger"><span class="icon">📒</span><span class="label">アプリ台帳</span></button>
     <button class="tile" id="logout-tile"><span class="icon">🔒</span><span class="label">ロックする</span></button>
   </div>
-  <div style="text-align:center;color:var(--text-sub);font-size:.7rem;margin-top:18px">v0.9.1</div>
+  <div style="text-align:center;color:var(--text-sub);font-size:.7rem;margin-top:18px">v0.9.2</div>
 </div>
 
 <!-- 買い物リスト -->
@@ -586,6 +594,7 @@ input, select { font-family: inherit; font-size: 1rem; }
 
   <div class="ledger-note" id="ledger-updated"></div>
 </div>
+</main>
 
 <!-- 下部ナビ -->
 <nav id="bottom-nav">
@@ -776,7 +785,7 @@ function showView(name) {
   $$('.view').forEach((v) => v.classList.remove('active'));
   $(`#view-${name}`).classList.add('active');
   $$('#bottom-nav .nav-btn').forEach((b) => b.classList.toggle('active', b.dataset.goto === name));
-  window.scrollTo(0, 0);
+  $('#scroller').scrollTo(0, 0);
   render(name);
 }
 document.addEventListener('click', (e) => {
