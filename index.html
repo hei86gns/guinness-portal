@@ -391,7 +391,7 @@ input, select { font-family: inherit; font-size: 1rem; }
     <button class="tile" data-goto="ledger"><span class="icon">📒</span><span class="label">アプリ台帳</span></button>
     <button class="tile" id="logout-tile"><span class="icon">🔒</span><span class="label">ロックする</span></button>
   </div>
-  <div style="text-align:center;color:var(--text-sub);font-size:.7rem;margin-top:18px">v0.9.3</div>
+  <div style="text-align:center;color:var(--text-sub);font-size:.7rem;margin-top:18px">v0.9.4</div>
 </div>
 
 <!-- 買い物リスト -->
@@ -638,6 +638,18 @@ let sb = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => document.querySelectorAll(s);
+/* 日本語入力(IME)の変換確定Enterと、送信用Enterを区別する。
+ * これをしないと「ぶたにく」→変換確定のEnterで「豚肉」だけ先に
+ * 追加されてしまい、続きの入力が別の項目として分かれてしまう */
+function bindEnterSubmit(input, cb) {
+  let composing = false;
+  input.addEventListener('compositionstart', () => { composing = true; });
+  input.addEventListener('compositionend', () => { composing = false; });
+  input.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || composing || e.isComposing || e.keyCode === 229) return;
+    cb();
+  });
+}
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const yen = (n) => '¥' + Math.round(n).toLocaleString('ja-JP');
 const WDAYS = ['日', '月', '火', '水', '木', '金', '土'];
@@ -771,7 +783,7 @@ async function tryLogin() {
   }
 }
 $('#login-btn').addEventListener('click', tryLogin);
-$('#login-pass').addEventListener('keydown', (e) => { if (e.key === 'Enter') tryLogin(); });
+bindEnterSubmit($('#login-pass'), tryLogin);
 $('#logout-tile').addEventListener('click', async () => {
   await sb.auth.signOut();
   location.reload();
@@ -911,7 +923,7 @@ $('#shop-add').addEventListener('click', () => {
   input.value = '';
   addShopping(name);
 });
-$('#shop-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#shop-add').click(); });
+bindEnterSubmit($('#shop-input'), () => $('#shop-add').click());
 
 $('#shop-list').addEventListener('click', async (e) => {
   const row = e.target.closest('.shop-item');
@@ -1074,7 +1086,7 @@ $('#pantry-add').addEventListener('click', async () => {
 });
 $('#pantry-filter-itemcat').addEventListener('change', (e) => { state.pantryItemCat = e.target.value; renderPantry(); });
 $('#pantry-sort').addEventListener('change', (e) => { state.pantrySort = e.target.value; renderPantry(); });
-$('#pantry-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#pantry-add').click(); });
+bindEnterSubmit($('#pantry-name'), () => $('#pantry-add').click());
 
 $('#pantry-list').addEventListener('click', async (e) => {
   const row = e.target.closest('.pantry-item');
