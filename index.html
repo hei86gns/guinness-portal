@@ -391,7 +391,7 @@ input, select { font-family: inherit; font-size: 1rem; }
     <button class="tile" data-goto="ledger"><span class="icon">📒</span><span class="label">アプリ台帳</span></button>
     <button class="tile" id="logout-tile"><span class="icon">🔒</span><span class="label">ロックする</span></button>
   </div>
-  <div style="text-align:center;color:var(--text-sub);font-size:.7rem;margin-top:18px">v0.9.4</div>
+  <div style="text-align:center;color:var(--text-sub);font-size:.7rem;margin-top:18px">v0.10.0</div>
 </div>
 
 <!-- 買い物リスト -->
@@ -750,6 +750,77 @@ function dbErr(e, fallback) {
 }
 
 /* ============================================================
+ * オフライン対応（買い物リストのみ）
+ * 方針: クラウドが唯一の正、という原則は崩さない。
+ * ローカル保存は「電波が無い間の一時的な送信待ちキュー」としてのみ使い、
+ * 買い物リストの内容そのものをローカルに保存・信頼することはしない。
+ * ============================================================ */
+function isNetworkError(e) {
+  const msg = String((e && e.message) || e || '');
+  return !navigator.onLine || /Failed to fetch|NetworkError|Load failed|network.*fail|fetch.*fail/i.test(msg);
+}
+
+const OFFLINE_QUEUE_KEY = 'gp_offline_queue';
+function loadOfflineQueue() {
+  try { return JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]'); } catch { return []; }
+}
+function saveOfflineQueue(q) {
+  try { localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(q)); } catch (e) { console.error(e); }
+}
+function queueOfflineAction(action) {
+  const q = loadOfflineQueue();
+  q.push(action);
+  saveOfflineQueue(q);
+}
+
+let offlineNoticeShown = false;
+function notifyOffline() {
+  if (offlineNoticeShown) return;
+  offlineNoticeShown = true;
+  toast('📴 オフラインです。電波が戻ったら自動で同期します', 4000);
+}
+
+let flushingOfflineQueue = false;
+async function flushOfflineQueue() {
+  if (flushingOfflineQueue) return;
+  const queue = loadOfflineQueue();
+  if (!queue.length) return;
+  flushingOfflineQueue = true;
+  let processed = 0;
+  for (const action of queue) {
+    try {
+      let error;
+      if (action.type === 'insert') ({ error } = await sb.from(action.table).upsert(action.payload, { onConflict: 'id' }));
+      else if (action.type === 'update') ({ error } = await sb.from(action.table).update(action.patch).eq('id', action.id));
+      else if (action.type === 'delete') ({ error } = await sb.from(action.table).delete().eq('id', action.id));
+      if (error) {
+        // 23xx/22xx = データそのものが不正で、何度送ってもDBに拒否される類のエラー。これだけ諦めて捨てる。
+        // それ以外(通信断・認証トークンの更新待ちなど一時的なもの)は捨てずに必ず後で再挑戦する。
+        const definitivelyRejected = /^(22|23)/.test(String(error.code || ''));
+        if (!definitivelyRejected) throw error;
+        console.error('オフライン中の変更を送信できず破棄しました(データ不整合):', action, error);
+      }
+    } catch (e) {
+      break; // 一時的な問題とみなし、今回はここまでにして次のタイミングで再挑戦
+    }
+    processed++;
+  }
+  const remaining = queue.slice(processed);
+  saveOfflineQueue(remaining);
+  flushingOfflineQueue = false;
+  if (processed > 0) {
+    await loadTable('shopping_items');
+    rerender();
+    if (!remaining.length) {
+      offlineNoticeShown = false;
+      toast('オフライン中の変更を同期しました 🔄');
+    }
+  }
+}
+window.addEventListener('online', flushOfflineQueue);
+setInterval(() => { if (loadOfflineQueue().length) flushOfflineQueue(); }, 20000);
+
+/* ============================================================
  * 認証（家族共通の合言葉）
  * ============================================================ */
 async function tryLogin() {
@@ -856,6 +927,7 @@ let appStarted = false;
 document.addEventListener('visibilitychange', async () => {
   if (!appStarted || document.visibilityState !== 'visible') return;
   try {
+    await flushOfflineQueue();
     await loadAll();
     rerender();
   } catch (e) { console.error(e); }
@@ -898,6 +970,7 @@ function setBadge(sel, n) {
  * 買い物リスト（優先度1）
  * ============================================================ */
 function renderShopping() {
+  const pendingIds = new Set(loadOfflineQueue().filter((a) => a.table === 'shopping_items').map((a) => a.id));
   const items = [...state.shopping].sort((a, b) => Number(a.checked) - Number(b.checked));
   $('#shop-list').innerHTML = items.length
     ? items.map((i) => `
@@ -905,15 +978,27 @@ function renderShopping() {
         <button class="shop-check" data-act="toggle">${i.checked ? '✓' : ''}</button>
         <span class="name" data-act="edit">${esc(i.name)}</span>
         ${i.source === 'pantry' ? '<span class="chip badge-stock">在庫切れ</span>' : ''}
+        ${pendingIds.has(i.id) ? '<span class="chip badge-stock">未送信</span>' : ''}
         <button class="del-btn" data-act="del">✕</button>
       </div>`).join('')
     : '<div class="empty">リストは空です 🎉</div>';
 }
 
 async function addShopping(name, source = 'manual', pantryCategory = null) {
-  const { error } = await sb.from('shopping_items').insert({ name, source, pantry_category: pantryCategory });
-  if (error) return dbErr(error, '追加に失敗しました');
-  await loadTable('shopping_items'); rerender();
+  const id = crypto.randomUUID();
+  const payload = { id, name, source, pantry_category: pantryCategory, checked: false };
+  try {
+    const { error } = await sb.from('shopping_items').insert(payload);
+    if (error) throw error;
+    await loadTable('shopping_items'); rerender();
+  } catch (e) {
+    if (!isNetworkError(e)) return dbErr(e, '追加に失敗しました');
+    // オフライン: 画面には即反映しつつ、オンライン復帰時に自動送信するキューへ積む
+    state.shopping.push({ ...payload, created_at: new Date().toISOString(), checked_at: null });
+    queueOfflineAction({ table: 'shopping_items', type: 'insert', id, payload });
+    rerender();
+    notifyOffline();
+  }
 }
 
 $('#shop-add').addEventListener('click', () => {
@@ -933,19 +1018,37 @@ $('#shop-list').addEventListener('click', async (e) => {
   if (!item) return;
 
   if (act.dataset.act === 'del') {
-    const { error } = await sb.from('shopping_items').delete().eq('id', item.id);
-    if (error) return dbErr(error, '削除に失敗しました');
+    try {
+      const { error } = await sb.from('shopping_items').delete().eq('id', item.id);
+      if (error) throw error;
+    } catch (e2) {
+      if (!isNetworkError(e2)) return dbErr(e2, '削除に失敗しました');
+      state.shopping = state.shopping.filter((i) => i.id !== item.id);
+      queueOfflineAction({ table: 'shopping_items', type: 'delete', id: item.id });
+      rerender();
+      notifyOffline();
+      return;
+    }
   } else if (act.dataset.act === 'edit') {
     return openShoppingEditModal(item);
   } else if (act.dataset.act === 'toggle') {
     const checked = !item.checked;
-    const { error } = await sb.from('shopping_items')
-      .update({ checked, checked_at: checked ? new Date().toISOString() : null })
-      .eq('id', item.id);
-    if (error) return dbErr(error, '更新に失敗しました');
-    // 購入チェック時 →「在庫に反映しますか？」（在庫との循環連携）
-    if (checked) {
-      actionToast(`「${item.name}」を在庫に反映しますか？`, '反映する', () => openPantryReflectModal(item));
+    const patch = { checked, checked_at: checked ? new Date().toISOString() : null };
+    try {
+      const { error } = await sb.from('shopping_items').update(patch).eq('id', item.id);
+      if (error) throw error;
+      // 購入チェック時 →「在庫に反映しますか？」（在庫との循環連携。オンライン時のみその場で提案）
+      if (checked) {
+        actionToast(`「${item.name}」を在庫に反映しますか？`, '反映する', () => openPantryReflectModal(item));
+      }
+    } catch (e2) {
+      if (!isNetworkError(e2)) return dbErr(e2, '更新に失敗しました');
+      // オフライン: チェックだけ即反映。在庫反映は後で品名タップ→「在庫に反映する」から手動で
+      Object.assign(item, patch);
+      queueOfflineAction({ table: 'shopping_items', type: 'update', id: item.id, patch });
+      rerender();
+      notifyOffline();
+      return;
     }
   }
   await loadTable('shopping_items'); rerender();
@@ -967,10 +1070,12 @@ function openShoppingEditModal(item) {
     <div class="form-grid">
       <input type="text" id="se-name" value="${esc(item.name)}">
       <button class="btn-primary" id="se-ok">保存する</button>
+      ${item.checked ? '<button class="btn-primary" id="se-reflect" style="background:var(--ok)">🥚 在庫に反映する</button>' : ''}
       <button class="btn-danger-ghost" id="se-del">削除する</button>
       <button class="btn-close" id="se-close">閉じる</button>
     </div>`);
   $('#se-close').addEventListener('click', closeModal);
+  if (item.checked) $('#se-reflect').addEventListener('click', () => { closeModal(); openPantryReflectModal(item); });
   $('#se-ok').addEventListener('click', async () => {
     const name = $('#se-name').value.trim();
     if (!name) return toast('品名を入れてください');
