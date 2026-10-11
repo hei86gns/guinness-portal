@@ -394,14 +394,14 @@ input, select { font-family: inherit; font-size: 1rem; }
     <button class="tile" data-goto="ledger"><span class="icon">📒</span><span class="label">アプリ台帳</span></button>
     <button class="tile" id="logout-tile"><span class="icon">🔒</span><span class="label">ロックする</span></button>
   </div>
-  <div style="text-align:center;color:var(--text-sub);font-size:.7rem;margin-top:18px">v0.10.2</div>
+  <div style="text-align:center;color:var(--text-sub);font-size:.7rem;margin-top:18px">v0.10.3</div>
 </div>
 
 <!-- 買い物リスト -->
 <div id="view-shopping" class="view">
   <div class="view-header"><h1>🛒 買い物リスト</h1><button class="btn-ghost" id="shop-clear-done">チェック済みを削除</button></div>
   <div class="add-row">
-    <input type="text" id="shop-input" placeholder="例：牛乳" enterkeyhint="done" autocomplete="off">
+    <input type="text" id="shop-input" placeholder="例：牛乳" enterkeyhint="done" autocomplete="off" name="search">
     <button class="add-btn" id="shop-add">＋</button>
   </div>
   <div class="card" id="shop-list"></div>
@@ -412,7 +412,7 @@ input, select { font-family: inherit; font-size: 1rem; }
   <div class="view-header"><h1>🥚 食材在庫</h1></div>
   <div class="card">
     <div class="form-grid">
-      <input type="text" id="pantry-name" placeholder="品名（例：たまご）" enterkeyhint="done" autocomplete="off">
+      <input type="text" id="pantry-name" placeholder="品名（例：たまご）" enterkeyhint="done" autocomplete="off" name="search">
       <div class="form-2col">
         <input type="date" id="pantry-date">
         <select id="pantry-cat"><option>冷蔵</option><option>冷凍</option><option>常温</option></select>
@@ -449,9 +449,9 @@ input, select { font-family: inherit; font-size: 1rem; }
   </div>
   <div class="card">
     <div class="form-grid">
-      <input type="text" id="sub-name" placeholder="サービス名（例：Netflix）" autocomplete="off">
+      <input type="text" id="sub-name" placeholder="サービス名（例：Netflix）" autocomplete="off" name="search">
       <div class="form-2col">
-        <input type="number" id="sub-amount" placeholder="金額（円）" inputmode="numeric" min="0" autocomplete="off">
+        <input type="number" id="sub-amount" placeholder="金額（円）" inputmode="numeric" min="0" autocomplete="off" name="search">
         <select id="sub-cycle"><option value="monthly">月額</option><option value="yearly">年額</option></select>
       </div>
       <select id="sub-month">
@@ -1071,7 +1071,7 @@ function openShoppingEditModal(item) {
   openModal(`
     <h2>🛒 品目を編集</h2>
     <div class="form-grid">
-      <input type="text" id="se-name" value="${esc(item.name)}" autocomplete="off">
+      <input type="text" id="se-name" value="${esc(item.name)}" autocomplete="off" name="search">
       <button class="btn-primary" id="se-ok">保存する</button>
       ${item.checked ? '<button class="btn-primary" id="se-reflect" style="background:var(--ok)">🥚 在庫に反映する</button>' : ''}
       <button class="btn-danger-ghost" id="se-del">削除する</button>
@@ -1230,7 +1230,7 @@ function openPantryEditModal(item) {
   openModal(`
     <h2>🥚 在庫を編集</h2>
     <div class="form-grid">
-      <input type="text" id="pe-name" value="${esc(item.name)}" autocomplete="off">
+      <input type="text" id="pe-name" value="${esc(item.name)}" autocomplete="off" name="search">
       <div class="form-2col">
         <div><span class="f-label">賞味期限</span><input type="date" id="pe-date" value="${item.expires_on}"></div>
         <div><span class="f-label">保管場所</span><select id="pe-cat">
@@ -1240,7 +1240,7 @@ function openPantryEditModal(item) {
       <div><span class="f-label">品目カテゴリ</span><select id="pe-itemcat">
         ${ITEM_CATS.map((c) => `<option ${c === (item.item_category || 'その他') ? 'selected' : ''}>${c}</option>`).join('')}
       </select></div>
-      <input type="text" id="pe-note" placeholder="備考（例：開封済み）" value="${item.note ? esc(item.note) : ''}" autocomplete="off">
+      <input type="text" id="pe-note" placeholder="備考（例：開封済み）" value="${item.note ? esc(item.note) : ''}" autocomplete="off" name="search">
       <button class="btn-primary" id="pe-ok">保存する</button>
       <button class="btn-danger-ghost" id="pe-del">削除する</button>
       <button class="btn-close" id="pe-close">閉じる</button>
@@ -1488,15 +1488,15 @@ function openLinkAddModal() {
     <h2>${isMemo ? '📝 メモを追加' : '🔗 リンクを追加'}</h2>
     <div class="form-grid">
       <div class="form-2col">
-        <input type="text" id="la-icon" maxlength="2" value="${isMemo ? '📝' : '🔗'}" style="text-align:center" autocomplete="off">
-        <input type="text" id="la-title" placeholder="タイトル" autocomplete="off">
+        <input type="text" id="la-icon" maxlength="2" value="${isMemo ? '📝' : '🔗'}" style="text-align:center" autocomplete="off" name="search">
+        <input type="text" id="la-title" placeholder="タイトル" autocomplete="off" name="search">
       </div>
-      ${isMemo ? '' : `<input type="url" id="la-url" placeholder="URL（https://…）" inputmode="url" autocomplete="off">`}
-      <input type="text" id="la-category" placeholder="カテゴリ（例：交通、生活、情報）" autocomplete="off">
+      ${isMemo ? '' : `<input type="url" id="la-url" placeholder="URL（https://…）" inputmode="url" autocomplete="off" name="search">`}
+      <input type="text" id="la-category" placeholder="カテゴリ（例：交通、生活、情報）" autocomplete="off" name="search">
       <div class="chip-row" id="la-cat-chips">
         ${cats.map((c) => `<button type="button" class="sel-chip" data-cat="${esc(c)}">${esc(c)}</button>`).join('')}
       </div>
-      <textarea id="la-note" placeholder="メモ（任意）" rows="3" style="width:100%;padding:11px 12px;border:1.5px solid var(--line);border-radius:12px;background:var(--card);font-family:inherit;resize:vertical" autocomplete="off"></textarea>
+      <textarea id="la-note" placeholder="メモ（任意）" rows="3" style="width:100%;padding:11px 12px;border:1.5px solid var(--line);border-radius:12px;background:var(--card);font-family:inherit;resize:vertical" autocomplete="off" name="search"></textarea>
       <div>
         <span class="f-label">写真・PDFを添付（任意・写真は自動で圧縮されます）</span>
         <input type="file" id="la-files" accept="image/*,application/pdf" multiple>
@@ -1562,17 +1562,17 @@ function openLinkEditModal(item) {
     <h2>${isMemo ? '📝 メモを編集' : '🔗 リンクを編集'}</h2>
     <div class="form-grid">
       <div class="form-2col">
-        <input type="text" id="le-icon" maxlength="2" value="${esc(item.icon || (isMemo ? '📝' : '🔗'))}" style="text-align:center" autocomplete="off">
-        <input type="text" id="le-title" value="${esc(item.title)}" autocomplete="off">
+        <input type="text" id="le-icon" maxlength="2" value="${esc(item.icon || (isMemo ? '📝' : '🔗'))}" style="text-align:center" autocomplete="off" name="search">
+        <input type="text" id="le-title" value="${esc(item.title)}" autocomplete="off" name="search">
       </div>
-      ${isMemo ? '' : `<input type="url" id="le-url" value="${esc(item.url || '')}" autocomplete="off">`}
-      <input type="text" id="le-category" placeholder="カテゴリ（例：交通、生活、情報）" value="${item.category ? esc(item.category) : ''}" autocomplete="off">
+      ${isMemo ? '' : `<input type="url" id="le-url" value="${esc(item.url || '')}" autocomplete="off" name="search">`}
+      <input type="text" id="le-category" placeholder="カテゴリ（例：交通、生活、情報）" value="${item.category ? esc(item.category) : ''}" autocomplete="off" name="search">
       <div class="chip-row" id="le-cat-chips">
         ${[...new Set(state.links.filter((l) => (l.type || 'link') === item.type).map((l) => l.category).filter(Boolean))]
           .sort((a, b) => a.localeCompare(b, 'ja'))
           .map((c) => `<button type="button" class="sel-chip" data-cat="${esc(c)}">${esc(c)}</button>`).join('')}
       </div>
-      <textarea id="le-note" placeholder="メモ（任意）" rows="3" style="width:100%;padding:11px 12px;border:1.5px solid var(--line);border-radius:12px;background:var(--card);font-family:inherit;resize:vertical" autocomplete="off">${item.note ? esc(item.note) : ''}</textarea>
+      <textarea id="le-note" placeholder="メモ（任意）" rows="3" style="width:100%;padding:11px 12px;border:1.5px solid var(--line);border-radius:12px;background:var(--card);font-family:inherit;resize:vertical" autocomplete="off" name="search">${item.note ? esc(item.note) : ''}</textarea>
       ${(item.attachments && item.attachments.length) ? `
         <div>
           <span class="f-label">添付ファイル（タップで表示・✕で削除）</span>
@@ -1706,9 +1706,9 @@ function openSubEditModal(item) {
   openModal(`
     <h2>💳 サブスクを編集</h2>
     <div class="form-grid">
-      <input type="text" id="sb-name" value="${esc(item.name)}" autocomplete="off">
+      <input type="text" id="sb-name" value="${esc(item.name)}" autocomplete="off" name="search">
       <div class="form-2col">
-        <div><span class="f-label">金額（円）</span><input type="number" id="sb-amount" inputmode="numeric" min="0" value="${item.amount}" autocomplete="off"></div>
+        <div><span class="f-label">金額（円）</span><input type="number" id="sb-amount" inputmode="numeric" min="0" value="${item.amount}" autocomplete="off" name="search"></div>
         <div><span class="f-label">支払い周期</span><select id="sb-cycle">
           <option value="monthly" ${item.cycle === 'monthly' ? 'selected' : ''}>月額</option>
           <option value="yearly" ${item.cycle === 'yearly' ? 'selected' : ''}>年額</option>
@@ -1852,7 +1852,7 @@ function openCarModal(dateStr, startHour, editItem = null) {
         <select id="cr-start">${timeOptions(startMin)}</select>
         <select id="cr-end">${timeOptions(endMin)}</select>
       </div>
-      <input type="text" id="cr-note" placeholder="メモ（例：買い出し）" value="${editItem && editItem.note ? esc(editItem.note) : ''}" autocomplete="off">
+      <input type="text" id="cr-note" placeholder="メモ（例：買い出し）" value="${editItem && editItem.note ? esc(editItem.note) : ''}" autocomplete="off" name="search">
       <div id="cr-warn" style="color:var(--danger);font-size:.82rem;min-height:1.2em"></div>
       <button class="btn-primary" id="cr-ok">${editItem ? '保存する' : '予約する'}</button>
       ${editItem ? '<button class="btn-danger-ghost" id="cr-del">この予約を削除する</button>' : ''}
@@ -1982,7 +1982,7 @@ function openEventModal(id) {
   openModal(`
     <h2>📅 ${ev ? '予定を編集' : '予定を追加'}</h2>
     <div class="form-grid">
-      <input type="text" id="ev-title" placeholder="予定名" value="${ev ? esc(ev.title) : ''}" autocomplete="off">
+      <input type="text" id="ev-title" placeholder="予定名" value="${ev ? esc(ev.title) : ''}" autocomplete="off" name="search">
       <div><span class="f-label">だれの予定？（複数選択可）</span>
         <div class="chip-row" id="ev-members">
           ${[...CONFIG.MEMBERS, MINNA].map((m) => `<button type="button" class="sel-chip" data-name="${esc(m.name)}" data-color="${m.color}">${esc(m.name)}</button>`).join('')}
@@ -2001,7 +2001,7 @@ function openEventModal(id) {
           ${MEALS.map((m) => `<button type="button" class="sel-chip" data-meal="${m}">🍽️${m}</button>`).join('')}
         </div>
       </div>
-      <input type="text" id="ev-note" placeholder="メモ（任意）" value="${ev && ev.note ? esc(ev.note) : ''}" autocomplete="off">
+      <input type="text" id="ev-note" placeholder="メモ（任意）" value="${ev && ev.note ? esc(ev.note) : ''}" autocomplete="off" name="search">
       <button class="btn-primary" id="ev-ok">${ev ? '保存する' : '追加する'}</button>
       ${ev ? '<button class="btn-danger-ghost" id="ev-del">この予定を削除する</button>' : ''}
       <button class="btn-close" id="ev-close">閉じる</button>
