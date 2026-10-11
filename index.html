@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#1a5c4a">
@@ -38,6 +38,9 @@ body {
 html, body { height: 100%; overflow: hidden; }
 #scroller {
   position: fixed; inset: 0; overflow-y: auto; overscroll-behavior-y: contain;
+  /* iOSに「ここが本来のスクロール領域です」と伝えることで、日本語入力の
+     変換候補バーの表示位置がズレる/出ない問題を避ける(iOSの既知の癖への対策) */
+  -webkit-overflow-scrolling: touch;
   /* iPhoneのステータスバー（時計・電池表示）やノッチと重ならないための安全余白 */
   padding-top: max(env(safe-area-inset-top), 0px);
   padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom));
@@ -391,7 +394,7 @@ input, select { font-family: inherit; font-size: 1rem; }
     <button class="tile" data-goto="ledger"><span class="icon">📒</span><span class="label">アプリ台帳</span></button>
     <button class="tile" id="logout-tile"><span class="icon">🔒</span><span class="label">ロックする</span></button>
   </div>
-  <div style="text-align:center;color:var(--text-sub);font-size:.7rem;margin-top:18px">v0.10.0</div>
+  <div style="text-align:center;color:var(--text-sub);font-size:.7rem;margin-top:18px">v0.10.1</div>
 </div>
 
 <!-- 買い物リスト -->
