@@ -394,7 +394,7 @@ input, select { font-family: inherit; font-size: 1rem; }
     <button class="tile" data-goto="ledger"><span class="icon">📒</span><span class="label">アプリ台帳</span></button>
     <button class="tile" id="logout-tile"><span class="icon">🔒</span><span class="label">ロックする</span></button>
   </div>
-  <div style="text-align:center;color:var(--text-sub);font-size:.7rem;margin-top:18px">v0.10.3</div>
+  <div style="text-align:center;color:var(--text-sub);font-size:.7rem;margin-top:18px">v0.10.4</div>
 </div>
 
 <!-- 買い物リスト -->
@@ -760,7 +760,16 @@ function dbErr(e, fallback) {
  * ============================================================ */
 function isNetworkError(e) {
   const msg = String((e && e.message) || e || '');
-  return !navigator.onLine || /Failed to fetch|NetworkError|Load failed|network.*fail|fetch.*fail/i.test(msg);
+  return !navigator.onLine || /Failed to fetch|NetworkError|Load failed|network.*fail|fetch.*fail|offline-timeout/i.test(msg);
+}
+
+/* 電波が「無い」ではなく「弱い」場合、通信は失敗せずいつまでも応答を待ち続けることがある。
+ * そのままだと画面が固まって見えるため、一定時間で見切りをつけてオフライン扱いにする */
+function withTimeout(promise, ms = 5000) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('offline-timeout: 応答がありません')), ms)),
+  ]);
 }
 
 const OFFLINE_QUEUE_KEY = 'gp_offline_queue';
@@ -793,9 +802,9 @@ async function flushOfflineQueue() {
   for (const action of queue) {
     try {
       let error;
-      if (action.type === 'insert') ({ error } = await sb.from(action.table).upsert(action.payload, { onConflict: 'id' }));
-      else if (action.type === 'update') ({ error } = await sb.from(action.table).update(action.patch).eq('id', action.id));
-      else if (action.type === 'delete') ({ error } = await sb.from(action.table).delete().eq('id', action.id));
+      if (action.type === 'insert') ({ error } = await withTimeout(sb.from(action.table).upsert(action.payload, { onConflict: 'id' })));
+      else if (action.type === 'update') ({ error } = await withTimeout(sb.from(action.table).update(action.patch).eq('id', action.id)));
+      else if (action.type === 'delete') ({ error } = await withTimeout(sb.from(action.table).delete().eq('id', action.id)));
       if (error) {
         // 23xx/22xx = データそのものが不正で、何度送ってもDBに拒否される類のエラー。これだけ諦めて捨てる。
         // それ以外(通信断・認証トークンの更新待ちなど一時的なもの)は捨てずに必ず後で再挑戦する。
@@ -991,7 +1000,7 @@ async function addShopping(name, source = 'manual', pantryCategory = null) {
   const id = crypto.randomUUID();
   const payload = { id, name, source, pantry_category: pantryCategory, checked: false };
   try {
-    const { error } = await sb.from('shopping_items').insert(payload);
+    const { error } = await withTimeout(sb.from('shopping_items').insert(payload));
     if (error) throw error;
     await loadTable('shopping_items'); rerender();
   } catch (e) {
@@ -1022,7 +1031,7 @@ $('#shop-list').addEventListener('click', async (e) => {
 
   if (act.dataset.act === 'del') {
     try {
-      const { error } = await sb.from('shopping_items').delete().eq('id', item.id);
+      const { error } = await withTimeout(sb.from('shopping_items').delete().eq('id', item.id));
       if (error) throw error;
     } catch (e2) {
       if (!isNetworkError(e2)) return dbErr(e2, '削除に失敗しました');
@@ -1038,7 +1047,7 @@ $('#shop-list').addEventListener('click', async (e) => {
     const checked = !item.checked;
     const patch = { checked, checked_at: checked ? new Date().toISOString() : null };
     try {
-      const { error } = await sb.from('shopping_items').update(patch).eq('id', item.id);
+      const { error } = await withTimeout(sb.from('shopping_items').update(patch).eq('id', item.id));
       if (error) throw error;
       // 購入チェック時 →「在庫に反映しますか？」（在庫との循環連携。オンライン時のみその場で提案）
       if (checked) {
