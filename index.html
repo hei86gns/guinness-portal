@@ -394,7 +394,7 @@ input, select { font-family: inherit; font-size: 1rem; }
     <button class="tile" data-goto="ledger"><span class="icon">📒</span><span class="label">アプリ台帳</span></button>
     <button class="tile" id="logout-tile"><span class="icon">🔒</span><span class="label">ロックする</span></button>
   </div>
-  <div style="text-align:center;color:var(--text-sub);font-size:.7rem;margin-top:18px">v0.10.4</div>
+  <div style="text-align:center;color:var(--text-sub);font-size:.7rem;margin-top:18px">v0.10.5</div>
 </div>
 
 <!-- 買い物リスト -->
@@ -667,6 +667,7 @@ const MEALS = ['朝', '昼', '夜'];
 
 const state = {
   shopping: [], pantry: [], subs: [], cars: [], events: [], links: [], ledger: [],
+  shopOrderSnapshot: null,
   currentView: 'home',
   pantryCat: 'all',
   pantryItemCat: 'all',
@@ -881,6 +882,7 @@ function showView(name) {
   $(`#view-${name}`).classList.add('active');
   $$('#bottom-nav .nav-btn').forEach((b) => b.classList.toggle('active', b.dataset.goto === name));
   $('#scroller').scrollTo(0, 0);
+  if (name === 'shopping') captureShopOrderSnapshot();
   render(name);
 }
 document.addEventListener('click', (e) => {
@@ -981,9 +983,20 @@ function setBadge(sel, n) {
 /* ============================================================
  * 買い物リスト（優先度1）
  * ============================================================ */
+/* 画面を開いた瞬間の「未チェックが上・チェック済みが下」の並びをそのまま固定する。
+ * チェックのたびに並び替えると、連続でタップした時に指の下で項目が入れ替わり、
+ * 別のアイテムにチェックが入ってしまう(特に通信が少し遅い場所でタップが速いと起きやすい) */
+function captureShopOrderSnapshot() {
+  const sorted = [...state.shopping].sort((a, b) => Number(a.checked) - Number(b.checked));
+  state.shopOrderSnapshot = sorted.map((i) => i.id);
+}
+
 function renderShopping() {
+  if (!state.shopOrderSnapshot) captureShopOrderSnapshot();
+  const order = state.shopOrderSnapshot;
+  const rank = (id) => { const i = order.indexOf(id); return i === -1 ? Infinity : i; };
   const pendingIds = new Set(loadOfflineQueue().filter((a) => a.table === 'shopping_items').map((a) => a.id));
-  const items = [...state.shopping].sort((a, b) => Number(a.checked) - Number(b.checked));
+  const items = [...state.shopping].sort((a, b) => rank(a.id) - rank(b.id));
   $('#shop-list').innerHTML = items.length
     ? items.map((i) => `
       <div class="shop-item ${i.checked ? 'done' : ''}" data-id="${i.id}">
