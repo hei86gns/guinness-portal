@@ -197,6 +197,13 @@ input, select { font-family: inherit; font-size: 1rem; }
   font-size: 1rem; color: #fff; background: var(--card);
 }
 .shop-item.done .shop-check { background: var(--ok); border-color: var(--ok); }
+/* 未送信の目印: チェック枠の角に重ねる点。行の高さ・幅を一切変えないよう絶対配置にしている */
+.shop-check { position: relative; }
+.shop-check.pending::after {
+  content: ''; position: absolute; top: -5px; right: -5px;
+  width: 10px; height: 10px; border-radius: 50%;
+  background: #f59e0b; border: 2px solid var(--card);
+}
 .shop-item .name { flex: 1; word-break: break-all; }
 .shop-item.done .name { color: var(--text-sub); text-decoration: line-through; }
 .badge-stock { background: #fef3c7; color: #92400e; }
@@ -351,9 +358,14 @@ input, select { font-family: inherit; font-size: 1rem; }
 #toast .t-no { color: #9ca3af; }
 
 /* ---------- エラーバナー ---------- */
+/* 画面の上に「浮かせて」表示する。通常の配置に差し込むと、出る/消えるたびに
+ * 下の内容が上下にズレ、タップが隣の項目に当たってしまうため */
 #err-banner {
   display: none; background: #fee2e2; color: #991b1b; font-size: .82rem;
   padding: 10px 14px; text-align: center;
+  position: fixed; left: 0; right: 0; top: 0; z-index: 150;
+  padding-top: calc(10px + env(safe-area-inset-top));
+  box-shadow: 0 2px 8px rgba(0,0,0,.12);
 }
 #err-banner.show { display: block; }
 </style>
@@ -394,7 +406,7 @@ input, select { font-family: inherit; font-size: 1rem; }
     <button class="tile" data-goto="ledger"><span class="icon">📒</span><span class="label">アプリ台帳</span></button>
     <button class="tile" id="logout-tile"><span class="icon">🔒</span><span class="label">ロックする</span></button>
   </div>
-  <div style="text-align:center;color:var(--text-sub);font-size:.7rem;margin-top:18px">v0.10.5</div>
+  <div style="text-align:center;color:var(--text-sub);font-size:.7rem;margin-top:18px">v0.10.6</div>
 </div>
 
 <!-- 買い物リスト -->
@@ -913,7 +925,7 @@ async function loadTable(table) {
   const { data, error } = await sb.from(table).select('*').order(col, opt);
   if (error) throw error;
   const key = { shopping_items: 'shopping', pantry_items: 'pantry', subscriptions: 'subs', car_reservations: 'cars', events: 'events', links: 'links', app_ledger: 'ledger' }[table];
-  state[key] = data || [];
+  state[key] = table === 'shopping_items' ? overlayLocalShoppingChanges(data || []) : (data || []);
 }
 async function loadAll() {
   await Promise.all(['shopping_items', 'pantry_items', 'subscriptions', 'car_reservations', 'events', 'links', 'app_ledger'].map(loadTable));
@@ -1000,10 +1012,9 @@ function renderShopping() {
   $('#shop-list').innerHTML = items.length
     ? items.map((i) => `
       <div class="shop-item ${i.checked ? 'done' : ''}" data-id="${i.id}">
-        <button class="shop-check" data-act="toggle">${i.checked ? '✓' : ''}</button>
+        <button class="shop-check ${pendingIds.has(i.id) ? 'pending' : ''}" data-act="toggle" aria-label="${pendingIds.has(i.id) ? '未送信' : ''}">${i.checked ? '✓' : ''}</button>
         <span class="name" data-act="edit">${esc(i.name)}</span>
         ${i.source === 'pantry' ? '<span class="chip badge-stock">在庫切れ</span>' : ''}
-        ${pendingIds.has(i.id) ? '<span class="chip badge-stock">未送信</span>' : ''}
         <button class="del-btn" data-act="del">✕</button>
       </div>`).join('')
     : '<div class="empty">リストは空です 🎉</div>';
@@ -1042,42 +1053,75 @@ $('#shop-list').addEventListener('click', async (e) => {
   const item = state.shopping.find((i) => i.id === row.dataset.id);
   if (!item) return;
 
+  if (act.dataset.act === 'edit') return openShoppingEditModal(item);
+
+  /* 楽観的更新: タップした瞬間に画面を変え、通信は後ろで行う。
+   * 通信の返事を待ってから画面を変えると、電波が弱い場所では最大5秒遅れて
+   * 画面が書き換わり、その間の次のタップと重なって誤操作の原因になるため */
   if (act.dataset.act === 'del') {
-    try {
-      const { error } = await withTimeout(sb.from('shopping_items').delete().eq('id', item.id));
-      if (error) throw error;
-    } catch (e2) {
-      if (!isNetworkError(e2)) return dbErr(e2, '削除に失敗しました');
-      state.shopping = state.shopping.filter((i) => i.id !== item.id);
-      queueOfflineAction({ table: 'shopping_items', type: 'delete', id: item.id });
-      rerender();
-      notifyOffline();
-      return;
-    }
-  } else if (act.dataset.act === 'edit') {
-    return openShoppingEditModal(item);
+    const snapshot = { ...item };
+    state.shopping = state.shopping.filter((i) => i.id !== item.id);
+    rerender();
+    sendShoppingChange(item.id, { type: 'delete' }, {
+      onRejected: (err) => { state.shopping.push(snapshot); rerender(); dbErr(err, '削除に失敗しました'); },
+    });
   } else if (act.dataset.act === 'toggle') {
     const checked = !item.checked;
+    const before = { checked: item.checked, checked_at: item.checked_at };
     const patch = { checked, checked_at: checked ? new Date().toISOString() : null };
-    try {
-      const { error } = await withTimeout(sb.from('shopping_items').update(patch).eq('id', item.id));
-      if (error) throw error;
-      // 購入チェック時 →「在庫に反映しますか？」（在庫との循環連携。オンライン時のみその場で提案）
-      if (checked) {
-        actionToast(`「${item.name}」を在庫に反映しますか？`, '反映する', () => openPantryReflectModal(item));
-      }
-    } catch (e2) {
-      if (!isNetworkError(e2)) return dbErr(e2, '更新に失敗しました');
-      // オフライン: チェックだけ即反映。在庫反映は後で品名タップ→「在庫に反映する」から手動で
-      Object.assign(item, patch);
-      queueOfflineAction({ table: 'shopping_items', type: 'update', id: item.id, patch });
-      rerender();
-      notifyOffline();
-      return;
-    }
+    Object.assign(item, patch);
+    rerender();
+    sendShoppingChange(item.id, { type: 'update', patch }, {
+      // 購入チェック時 →「在庫に反映しますか？」（オンライン時のみその場で提案。オフライン時は後で品名タップから）
+      onSaved: () => { if (checked) actionToast(`「${item.name}」を在庫に反映しますか？`, '反映する', () => openPantryReflectModal(item)); },
+      onRejected: (err) => { Object.assign(item, before); rerender(); dbErr(err, '更新に失敗しました'); },
+    });
   }
-  await loadTable('shopping_items'); rerender();
 });
+
+/* 買い物リストの変更をクラウドへ送る（画面はすでに変更済みの前提）。
+ * - 同じ品目への連打は順番どおりに送る（後の操作が先に届いて逆転しないように）
+ * - 通信できなければオフラインキューに積み、電波が戻ったら自動送信
+ * - データ自体がDBに拒否された時だけ onRejected で画面を元に戻す */
+const shopSendChains = new Map();
+const shopInFlight = new Map();  // id -> 送信中の変更（送信中に再取得しても画面が巻き戻らないように）
+function sendShoppingChange(id, change, { onSaved, onRejected } = {}) {
+  const prev = shopSendChains.get(id) || Promise.resolve();
+  const run = prev.then(async () => {
+    shopInFlight.set(id, change);
+    try {
+      // 先に同じ品目の未送信分がある時は、追い越さないよう自分もキューに並ぶ
+      if (loadOfflineQueue().some((a) => a.table === 'shopping_items' && a.id === id)) throw new Error('offline-timeout: 未送信の変更あり');
+      const q = sb.from('shopping_items');
+      const { error } = await withTimeout(change.type === 'delete' ? q.delete().eq('id', id) : q.update(change.patch).eq('id', id));
+      if (error) throw error;
+      shopInFlight.delete(id);
+      onSaved && onSaved();
+    } catch (e) {
+      shopInFlight.delete(id);
+      if (!isNetworkError(e)) return onRejected && onRejected(e);
+      queueOfflineAction({ table: 'shopping_items', type: change.type, id, ...(change.patch ? { patch: change.patch } : {}) });
+      rerender();  // 未送信の目印を付ける(目印は行の大きさを変えない)
+      notifyOffline();
+    }
+  });
+  shopSendChains.set(id, run);
+  run.finally(() => { if (shopSendChains.get(id) === run) shopSendChains.delete(id); });
+}
+
+/* クラウドから取り直した一覧に、まだ届いていない手元の変更(送信中・未送信)を重ねる。
+ * これをしないと、電波が戻った瞬間やRealtime通知のたびにチェックが一瞬外れて見える */
+function overlayLocalShoppingChanges(rows) {
+  let list = [...rows];
+  const pending = [...loadOfflineQueue().filter((a) => a.table === 'shopping_items'),
+    ...[...shopInFlight].map(([id, c]) => ({ id, ...c }))];
+  for (const a of pending) {
+    if (a.type === 'insert' && !list.some((i) => i.id === a.id)) list.push({ created_at: new Date().toISOString(), checked_at: null, ...a.payload });
+    else if (a.type === 'update') list = list.map((i) => (i.id === a.id ? { ...i, ...a.patch } : i));
+    else if (a.type === 'delete') list = list.filter((i) => i.id !== a.id);
+  }
+  return list;
+}
 
 $('#shop-clear-done').addEventListener('click', async () => {
   const done = state.shopping.filter((i) => i.checked);
