@@ -83,6 +83,7 @@ input, select { font-family: inherit; font-size: 1rem; }
 .ledger-app .row b { color: var(--text); font-weight: 600; }
 .chip-cloud { background: #e6edf7; color: #3563a8; }
 .chip-local { background: #f4ead9; color: #a3762a; }
+.chip-nas { background: #ede7f6; color: #6b46c1; }
 /* 早見表 */
 .ledger-table-wrap { overflow-x: auto; margin: 0 -4px; }
 .ledger-table { border-collapse: collapse; font-size: .74rem; white-space: nowrap; }
@@ -406,7 +407,7 @@ input, select { font-family: inherit; font-size: 1rem; }
     <button class="tile" data-goto="ledger"><span class="icon">📒</span><span class="label">アプリ台帳</span></button>
     <button class="tile" id="logout-tile"><span class="icon">🔒</span><span class="label">ロックする</span></button>
   </div>
-  <div style="text-align:center;color:var(--text-sub);font-size:.7rem;margin-top:18px">v0.10.6</div>
+  <div style="text-align:center;color:var(--text-sub);font-size:.7rem;margin-top:18px">v0.10.7</div>
 </div>
 
 <!-- 買い物リスト -->
@@ -1488,14 +1489,21 @@ function projClass(label) {
   return label.startsWith('A') ? 'proj-a' : 'proj-b';
 }
 
+// 台帳の「どこで動くか」区分（app_ledger.backend の値）
+const BACKENDS = {
+  cloud: { label: 'クラウド', chip: 'chip-cloud' },
+  nas:   { label: 'NAS（自宅）', chip: 'chip-nas' },
+  local: { label: 'ローカルのみ', chip: 'chip-local' },
+};
+const backendOf = (a) => BACKENDS[a.backend] || BACKENDS.cloud;
+
 function renderLedger() {
   const items = state.ledger;
-  const cloudCount = items.filter((a) => a.backend === 'cloud').length;
-  const localCount = items.filter((a) => a.backend === 'local').length;
+  const count = (key) => items.filter((a) => a.backend === key).length;
   $('#ledger-summary').innerHTML = `
     <div class="stat"><div class="num">${items.length}</div><div class="lbl">アプリ数</div></div>
-    <div class="stat"><div class="num">${cloudCount}</div><div class="lbl">クラウド利用</div></div>
-    <div class="stat"><div class="num">${localCount}</div><div class="lbl">ローカルのみ</div></div>
+    ${Object.entries(BACKENDS).map(([key, b]) =>
+      `<div class="stat"><div class="num">${count(key)}</div><div class="lbl">${b.label}</div></div>`).join('')}
   `;
 
   /* ---- 早見表：どのアプリがどのプロジェクト／リポジトリか ---- */
@@ -1526,7 +1534,7 @@ function renderLedger() {
       <div class="ledger-app">
         <div class="head">
           <span class="name">${esc(a.icon || '📦')} ${esc(a.name)}${a.is_new ? ' <span class="chip" style="background:#dcfce7;color:#15803d">NEW</span>' : ''}</span>
-          <span class="chip ${a.backend === 'local' ? 'chip-local' : 'chip-cloud'}">${a.backend === 'local' ? 'ローカルのみ' : 'クラウド'}</span>
+          <span class="chip ${backendOf(a).chip}">${backendOf(a).label}</span>
         </div>
         ${a.project_label ? `<div class="row"><b>Supabase</b>: <span class="proj ${projClass(a.project_label)}">${esc(a.project_label)}</span>${a.project_ref ? ` <span class="t-mono" style="font-size:.72rem">${esc(a.project_ref)}</span>` : ''}</div>` : ''}
         ${a.db_tables ? `<div class="row"><b>テーブル</b>: <span class="t-mono">${esc(a.db_tables)}</span></div>` : ''}
