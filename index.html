@@ -209,6 +209,8 @@ input, select { font-family: inherit; font-size: 1rem; }
 .shop-item.done .name { color: var(--text-sub); text-decoration: line-through; }
 .badge-stock { background: #fef3c7; color: #92400e; }
 .del-btn { color: #cbd5e1; font-size: 1.1rem; padding: 6px 8px; flex-shrink: 0; }
+/* 連続タップを「ダブルタップで拡大」と誤解させない(拡大の判定待ちでタップが遅れて届くのを防ぐ) */
+#shop-list { touch-action: manipulation; }
 
 /* ---------- 食材在庫 ---------- */
 .seg { display: flex; background: #e9eaee; border-radius: 10px; padding: 3px; margin-bottom: 12px; }
@@ -407,7 +409,7 @@ input, select { font-family: inherit; font-size: 1rem; }
     <button class="tile" data-goto="ledger"><span class="icon">📒</span><span class="label">アプリ台帳</span></button>
     <button class="tile" id="logout-tile"><span class="icon">🔒</span><span class="label">ロックする</span></button>
   </div>
-  <div style="text-align:center;color:var(--text-sub);font-size:.7rem;margin-top:18px">v0.10.7</div>
+  <div style="text-align:center;color:var(--text-sub);font-size:.7rem;margin-top:18px">v0.10.8</div>
 </div>
 
 <!-- 買い物リスト -->
@@ -895,7 +897,7 @@ function showView(name) {
   $(`#view-${name}`).classList.add('active');
   $$('#bottom-nav .nav-btn').forEach((b) => b.classList.toggle('active', b.dataset.goto === name));
   $('#scroller').scrollTo(0, 0);
-  if (name === 'shopping') captureShopOrderSnapshot();
+  if (name === 'shopping') { captureShopOrderSnapshot(); shopPrevRowIds = []; }
   render(name);
 }
 document.addEventListener('click', (e) => {
@@ -1010,6 +1012,7 @@ function renderShopping() {
   const rank = (id) => { const i = order.indexOf(id); return i === -1 ? Infinity : i; };
   const pendingIds = new Set(loadOfflineQueue().filter((a) => a.table === 'shopping_items').map((a) => a.id));
   const items = [...state.shopping].sort((a, b) => rank(a.id) - rank(b.id));
+  noteShopRowShift(items.map((i) => i.id));
   $('#shop-list').innerHTML = items.length
     ? items.map((i) => `
       <div class="shop-item ${i.checked ? 'done' : ''}" data-id="${i.id}">
@@ -1047,10 +1050,56 @@ $('#shop-add').addEventListener('click', () => {
 });
 bindEnterSubmit($('#shop-input'), () => $('#shop-add').click());
 
+/* ---------- 誤タップ防止ガード ----------
+ * 「指を置いた行」と「タップが届いた行」が食い違う状況を検出し、その1回のタップは捨てる。
+ * 間違った行を操作するより、何も起きずにもう一度タップしてもらう方が安全なため。
+ *  (a) キーボード表示中のタップ … 閉じる瞬間に画面が伸び縮みして行がズレる → キーボードを閉じるだけにする
+ *  (b) 指を置いてから離すまでに行が入れ替わった
+ *  (c) タップ直前(0.45秒以内)に、家族の端末の変更などで行の位置が動いた(指が古い位置を狙っている) */
+const SHOP_SHIFT_GRACE_MS = 450;
+let shopPrevRowIds = [];
+let shopRowShiftedAt = -Infinity;
+let shopSelfShift = false;   // 自分の✕削除による繰り上がりは、本人が見て操作しているので対象外
+function noteShopRowShift(ids) {
+  const prevIndex = new Map(shopPrevRowIds.map((id, i) => [id, i]));
+  // 前回もあった行の「上から何番目か」が変わった時だけを「ズレ」とみなす(末尾への追加は無害)
+  const shifted = ids.some((id, i) => prevIndex.has(id) && prevIndex.get(id) !== i);
+  if (shifted && !shopSelfShift) shopRowShiftedAt = performance.now();
+  shopSelfShift = false;
+  shopPrevRowIds = ids;
+}
+/* iPhoneはキーボードを出す時にページ全体を少し押し上げ、閉じた後もその位置が残ることがある。
+ * すると「見た目の位置」と「タッチを受け付ける位置」がズレたままになるため、
+ * 入力が終わったら必ず元の位置(0)に戻す。このアプリはページ全体をスクロールしない作りなので副作用はない */
+document.addEventListener('focusout', () => {
+  setTimeout(() => {
+    const ae = document.activeElement;
+    if (!(ae && ae.matches('input, textarea, select')) && (window.scrollY || window.scrollX)) window.scrollTo(0, 0);
+  }, 60);
+});
+
+const shopTap = { at: -Infinity, rowId: null, dismissKeyboard: false };
+$('#shop-list').addEventListener('pointerdown', (e) => {
+  const ae = document.activeElement;
+  shopTap.dismissKeyboard = !!(ae && ae.matches('input, textarea'));
+  if (shopTap.dismissKeyboard) ae.blur();
+  shopTap.at = performance.now();
+  shopTap.rowId = e.target.closest('.shop-item')?.dataset.id ?? null;
+});
+function isUnsafeShopTap(row) {
+  // 指の操作に由来しないクリック(読み上げ機能など)は判定しない
+  if (performance.now() - shopTap.at > 1500) return false;
+  if (shopTap.dismissKeyboard) return true;                                   // (a)
+  if (shopTap.rowId !== row.dataset.id) return true;                          // (b)
+  if (shopRowShiftedAt > shopTap.at - SHOP_SHIFT_GRACE_MS) return true;       // (c)
+  return false;
+}
+
 $('#shop-list').addEventListener('click', async (e) => {
   const row = e.target.closest('.shop-item');
   const act = e.target.closest('[data-act]');
   if (!row || !act) return;
+  if (isUnsafeShopTap(row)) return;
   const item = state.shopping.find((i) => i.id === row.dataset.id);
   if (!item) return;
 
@@ -1062,6 +1111,7 @@ $('#shop-list').addEventListener('click', async (e) => {
   if (act.dataset.act === 'del') {
     const snapshot = { ...item };
     state.shopping = state.shopping.filter((i) => i.id !== item.id);
+    shopSelfShift = true;
     rerender();
     sendShoppingChange(item.id, { type: 'delete' }, {
       onRejected: (err) => { state.shopping.push(snapshot); rerender(); dbErr(err, '削除に失敗しました'); },
